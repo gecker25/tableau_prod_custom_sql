@@ -1,0 +1,22 @@
+select 
+DS.FILE_NAME AS "File Name",
+DS.DESCRIPTION AS "File Description", 
+TYPE_OF_FILE AS "Type of File",
+DATE_CREATED as "Date Created", 
+DATE_UPLOADED as "Date Uploaded", 
+CREATOR, 
+TIMEFRAME, 
+FREQUENCY_UPDATED as "Frequency",
+GRAIN, 
+CATEGORY, 
+TAGS, 
+CERTIFICATION_STATUS as "Certification Status", 
+DC.FILE_PATH,
+DC.ORDINAL_NUMBER_POSITION AS "Ordinal Number Position", 
+DC.COLUMN_NAME AS "Column Name", 
+DC.DESCRIPTION AS "Column Description", 
+DC.RANGE AS "Column Range", 
+DC.SAMPLE_VALUES AS "Sample Values", 
+DC.TYPE AS "Column Type"
+from "ANALYTICS"."MARTS"."DATASET_SUMMARY"  DS
+LEFT JOIN "ANALYTICS"."MARTS"."DATASET_COLUMNS" DC ON DS.file_name=DC.FILE_NAME
