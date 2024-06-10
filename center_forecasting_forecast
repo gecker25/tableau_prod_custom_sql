@@ -1,0 +1,26 @@
+select 
+Center_key as "center_key3", 
+Network as "network3", 
+DATE_EST as "date_est3" , 
+DAY_OF_WEEK as "day_of_week3", 
+TO_NUMBER(HOUR_EST) as "hour_est3", 
+predicted_offered ,
+predicted_offered_high ,
+predicted_offered_low,
+expected_answered,
+expected_answered_high,
+expected_answered_low,
+avg_answer_rate as "avg_answered_rate3",
+percentile_05_answer_rate as "percentile_05_answer_rate3",
+percentile_95_answer_rate as "percentile_95_answer_rate3",
+last_attempt_est as "last_attempt_est3",
+run_date as "run_date3",
+CASE WHEN volatility = 'Average' THEN 'Medium'
+ELSE volatility
+END as "volatility3"
+from 
+staging.aiml.center_level_volume_forecasting
+where MODALITY = 'Calls'
+and run_date = (select MAX(run_date) from staging.aiml.center_level_volume_forecasting)
+and Center_key NOT IN ('SRock1', 'SRock2')
+and network <> 'VA'
