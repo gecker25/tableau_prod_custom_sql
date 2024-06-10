@@ -1,0 +1,9 @@
+SELECT *
+FROM "ANALYTICS"."MARTS"."GOOGLE_TRENDS_INTEREST_OVER_TIME_MULTIPLEKEYWORDS" m
+where date_run = (Select MAX(Date_run)
+                    FROM (
+                    Select date_run
+                    FROM "ANALYTICS"."MARTS"."GOOGLE_TRENDS_INTEREST_OVER_TIME" "INTEREST_OVER_TIME"
+                    group by  date_run
+                    having count(distinct keyword) = 5 ))
+AND APPLICABLE_DATE >= DATEADD(month, -1, Date_run)
