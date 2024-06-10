@@ -1,0 +1,620 @@
+/* Workforce Management Staffing Plans Query
+
+Updates:
+
+1.0 -
+ Initial Build
+1.1 - 15 minute intervals
+1.2 - Fixed 24 hour timeslot bug. Changed to use production data. Changed ENTRY to name 'staff_type_count'. Added more timeslots. Will need a full list before final model.
+1.3 - Addition of all 15 minute timeslots from 2 month period. Fixed duplication issue caused by headcount object.
+1.4 ....
+1.5 ...
+1.6 - Updated join for connection on networks. Updated time interval series to look at -2 weeks in the past and max the timeval to current timestamp.
+1.7 - Network and deduplication updates.
+1.8 - Updated of 988 Total Network aggregation
+1.9 - Fixed issue of end time overlapping with start time and double counting staff.
+0.10 - Fixed name duplication by adding REGEX and removing everything after '(' in the center's name, which was previously causing duplicates due to ll datasets adding a location value in the name. 
+0.11 - Correction of inflated staff type counts
+0.12 - Updated schema of DW tables from STAGING.DW_HISTORICAL_S3 to renamed version STAGING.DW_HISTORICAL
+0.13 - Timezone conversion updates to account for daylight savings
+0.14 - Date logic increased from 14 days to 15 in base, then trimmed near end to base 2 week interval off of EST date. Done to fix EST time conversions sending centers to more than 2 weeks past EST-converted dates. 
+0.15 - Date logic updated to always start from the MONDAY of two weeks ago in order to allow users to see the full plan of 2 weeks prior, no matter the day of the week the query is ran.
+Latest updates are as of 4/29/24
+0.16 - Accounting for adjustment for the estimated percent of time spent on other activities field on the staffing plan. Minor updates to expand center_local_datetime_slot into hour and minute fields. 
+0.17 - Addition of local time fields.
+0.18 Validation - Core 988
+
+Latest updates are as of 5/17/24
+  
+*/
+
+with recursive
+
+intervalseries as (
+
+        select TO_TIMESTAMP(date_day) as interval_val from ANALYTICS.MARTS.DIM_DATES
+        where iso_week_of_year = WEEKISO(CURRENT_DATE() - interval '2 WEEKS')
+        and YEAR_NUMBER = DATE_PART('year', CURRENT_DATE())
+        and day_of_week_iso = 1
+        union all
+        select timestampadd(minute, 15, interval_val)
+        from intervalseries
+        where interval_val < to_timestamp(dateadd('DAY',15,current_timestamp))
+
+    ), 
+
+staffing_data as (
+
+        select
+            plan_shift.id as plan_shift_id,
+            cmt_account.crisis_center_key,
+            cmt_account.name as center_name,
+            cmt_account.time_zone as center_time_zone,
+            cmt_account.daylights_savings,
+            entry.id as entry_id,
+            plan.id as plan_id,
+            entry.staffing_plan_shift,
+            entry.shift_date as shift_date_start,
+            start_time, 
+            end_time,
+            TO_TIME(start_time) as shift_start_time,
+            TO_TIME(end_time) - INTERVAL '1 MINUTE' as shift_end_time,
+            case 
+                when TO_TIME(end_time) - INTERVAL '1 MINUTE' = '23:59:00' then entry.shift_date
+                when TO_TIME(end_time) < TO_TIME(start_time) then dateadd(day, 1, entry.shift_date)
+                else entry.shift_date
+            end as shift_date_end,
+            plan_shift.staffing_type,
+            case 
+                when percentage_of_time_spent > 0
+                then ((100.0 - plan_shift.percentage_of_time_spent::float))
+                else 0
+                end as percentage_of_time_spent_on_modality,
+            case
+                when percentage_of_time_spent = 0 and staff_type_count > 0
+                    then staff_type_count
+                when percentage_of_time_spent > 0 and staff_type_count > 0
+                    then ((100.0 - plan_shift.percentage_of_time_spent::float)/100.0) * staff_type_count
+                else 0
+                end as staff_type_count_adjusted,
+            entry.staff_type_count as staff_type_count_unadjusted,
+            case 
+                when plan_shift.network = 'Veteran''s Crisis Line' then 'VA'
+                when plan_shift.network = '988 National Backup' then 'National-Backup'
+                when plan_shift.network like '%LGBTQI%' then 'LGBTQ'
+                when plan_shift.network = 'Native and Strong' then 'Native'
+                when plan_shift.network = '988 Lifeline Local' then 'NSPL'
+                when plan_shift.network = 'National Suicide Prevention Line' then 'Local'
+                else plan_shift.network
+            end as sub_network,
+            case
+                when plan_shift.channel = 'Work' then 'Calls'
+                else plan_shift.channel
+            end as modality,
+            concat(shift_date_start, ' ', shift_start_time) as shift_start_datetime,
+            concat(shift_date_end, ' ', shift_end_time) as shift_end_datetime,
+            plan.nm_status_c as plan_status
+        from staging.cmt_salesforce.staffing_plan_day_entry entry
+        join
+            staging.cmt_salesforce.staffing_plan_shift plan_shift
+            on plan_shift.id = entry.staffing_plan_shift
+        join
+            staging.cmt_salesforce.staffing_plan plan
+            on plan.id = plan_shift.staffing_plan
+        join
+            staging.cmt_salesforce.cmt_account cmt_account
+            on cmt_account.id = plan.crisis_center
+        where
+            entry.is_deleted = 'false'
+            and plan_shift.is_deleted = 'false'
+            and plan.is_deleted = 'false'
+            and cmt_account.is_deleted = 'false'
+
+            -- Testing!
+            --and crisis_center_key = 'WV304000'
+            -- and shift_date_start = '2024-05-12'
+
+
+    ), 
+
+time_intervals as (
+
+
+    select distinct
+    plan_shift_id,
+    plan_id,
+    interval_val as datetime,
+    crisis_center_key,
+    center_name,
+    center_time_zone,
+    daylights_savings,
+    plan_status,
+    staff_type_count_adjusted,
+    staff_type_count_unadjusted,
+    staffing_type,
+    sub_network,
+    modality
+    from staffing_data
+    left join intervalseries on intervalseries.interval_val between shift_start_datetime and shift_end_datetime
+    order by datetime asc
+    
+   ), 
+
+staffing_agg as (
+
+    select
+    datetime,
+    plan_status,
+    crisis_center_key,
+    center_name,
+    center_time_zone,
+    daylights_savings,
+    sub_network,
+    modality,
+    sum(staff_type_count_adjusted) as staff_type_count_adjusted,
+    sum(staff_type_count_unadjusted) as staff_type_count_unadjusted,
+            sum(
+                case
+                    when staffing_type = 'Full-Time' then staff_type_count_adjusted else null
+                end
+            ) as staff_type_count_full_time_adjusted,
+            sum(
+                case
+                    when staffing_type = 'Part-Time' then staff_type_count_adjusted else null
+                end
+            ) as staff_type_count_part_time_adjusted,
+            sum(
+                case when staffing_type = 'Peer' then staff_type_count_adjusted else null end
+            ) as staff_type_count_peer_adjusted,
+            sum(
+                case
+                    when staffing_type = 'Volunteer' then staff_type_count_adjusted else null
+                end
+            ) as staff_type_count_volunteer_adjusted,
+            sum(
+                case
+                    when
+                        staffing_type <> 'Full-Time'
+                        and staffing_type <> 'Part-Time'
+                        and staffing_type <> 'Peer'
+                        and staffing_type <> 'Volunteer'
+                    then staff_type_count_adjusted
+                    else null
+                end
+            ) as staff_type_count_other_adjusted,
+                sum(
+                case
+                    when staffing_type = 'Full-Time' then staff_type_count_unadjusted else null
+                end
+            ) as staff_type_count_full_time_unadjusted,
+            sum(
+                case
+                    when staffing_type = 'Part-Time' then staff_type_count_unadjusted else null
+                end
+            ) as staff_type_count_part_time_unadjusted,
+            sum(
+                case when staffing_type = 'Peer' then staff_type_count_unadjusted else null end
+            ) as staff_type_count_peer_unadjusted,
+            sum(
+                case
+                    when staffing_type = 'Volunteer' then staff_type_count_unadjusted else null
+                end
+            ) as staff_type_count_volunteer_unadjusted,
+            sum(
+                case
+                    when
+                        staffing_type <> 'Full-Time'
+                        and staffing_type <> 'Part-Time'
+                        and staffing_type <> 'Peer'
+                        and staffing_type <> 'Volunteer'
+                    then staff_type_count_unadjusted
+                    else null
+                end
+            ) as staff_type_count_other_unadjusted
+    from time_intervals
+    group by 1, 2, 3, 4, 5, 6, 7, 8
+    order by datetime asc
+    
+    ), 
+
+staffing_agg_988 as (
+    select
+    datetime,
+    plan_status,
+    crisis_center_key,
+    center_name,
+    center_time_zone,
+    daylights_savings,
+    '988 Total Network' as sub_network,
+    modality,
+    sum(staff_type_count_adjusted) as staff_type_count_adjusted,
+    sum(staff_type_count_unadjusted) as staff_type_count_unadjusted,
+            sum(
+                case
+                    when staffing_type = 'Full-Time' then staff_type_count_adjusted else null
+                end
+            ) as staff_type_count_full_time_adjusted,
+            sum(
+                case
+                    when staffing_type = 'Part-Time' then staff_type_count_adjusted else null
+                end
+            ) as staff_type_count_part_time_adjusted,
+            sum(
+                case when staffing_type = 'Peer' then staff_type_count_adjusted else null end
+            ) as staff_type_count_peer_adjusted,
+            sum(
+                case
+                    when staffing_type = 'Volunteer' then staff_type_count_adjusted else null
+                end
+            ) as staff_type_count_volunteer_adjusted,
+            sum(
+                case
+                    when
+                        staffing_type <> 'Full-Time'
+                        and staffing_type <> 'Part-Time'
+                        and staffing_type <> 'Peer'
+                        and staffing_type <> 'Volunteer'
+                    then staff_type_count_adjusted
+                    else null
+                end
+            ) as staff_type_count_other_adjusted,
+                sum(
+                case
+                    when staffing_type = 'Full-Time' then staff_type_count_unadjusted else null
+                end
+            ) as staff_type_count_full_time_unadjusted,
+            sum(
+                case
+                    when staffing_type = 'Part-Time' then staff_type_count_unadjusted else null
+                end
+            ) as staff_type_count_part_time_unadjusted,
+            sum(
+                case when staffing_type = 'Peer' then staff_type_count_unadjusted else null end
+            ) as staff_type_count_peer_unadjusted,
+            sum(
+                case
+                    when staffing_type = 'Volunteer' then staff_type_count_unadjusted else null
+                end
+            ) as staff_type_count_volunteer_unadjusted,
+            sum(
+                case
+                    when
+                        staffing_type <> 'Full-Time'
+                        and staffing_type <> 'Part-Time'
+                        and staffing_type <> 'Peer'
+                        and staffing_type <> 'Volunteer'
+                    then staff_type_count_unadjusted
+                    else null
+                end
+            ) as staff_type_count_other_unadjusted
+    from time_intervals
+    group by 1, 2, 3, 4, 5, 6, 7, 8
+    order by datetime asc), 
+
+staffing_agg_all_networks as (
+    select
+    datetime,
+    plan_status,
+    crisis_center_key,
+    center_name,
+    center_time_zone,
+    daylights_savings,
+    sub_network,
+    modality,
+    staff_type_count_adjusted,
+    staff_type_count_unadjusted,
+    staff_type_count_full_time_adjusted,
+    staff_type_count_part_time_adjusted,
+    staff_type_count_peer_adjusted,
+    staff_type_count_volunteer_adjusted,
+    staff_type_count_other_adjusted,
+    staff_type_count_full_time_unadjusted,
+    staff_type_count_part_time_unadjusted,
+    staff_type_count_peer_unadjusted,
+    staff_type_count_volunteer_unadjusted,
+    staff_type_count_other_unadjusted
+    from staffing_agg
+    union
+    select
+    datetime,
+    plan_status,
+    crisis_center_key,
+    center_name,
+    center_time_zone,
+    daylights_savings,
+    sub_network,
+    modality,
+    staff_type_count_adjusted,
+    staff_type_count_unadjusted,
+    staff_type_count_full_time_adjusted,
+    staff_type_count_part_time_adjusted,
+    staff_type_count_peer_adjusted,
+    staff_type_count_volunteer_adjusted,
+    staff_type_count_other_adjusted,
+    staff_type_count_full_time_unadjusted,
+    staff_type_count_part_time_unadjusted,
+    staff_type_count_peer_unadjusted,
+    staff_type_count_volunteer_unadjusted,
+    staff_type_count_other_unadjusted
+    from staffing_agg_988    ), 
+
+ve_form_data as (
+
+    select
+    plan_status,
+    crisis_center_key,
+    center_name,
+    sub_network,
+    modality,
+    staff_type_count_adjusted,
+    staff_type_count_unadjusted,
+    staff_type_count_full_time_adjusted,
+    staff_type_count_part_time_adjusted,
+    staff_type_count_peer_adjusted,
+    staff_type_count_volunteer_adjusted,
+    staff_type_count_other_adjusted,
+    staff_type_count_full_time_unadjusted,
+    staff_type_count_part_time_unadjusted,
+    staff_type_count_peer_unadjusted,
+    staff_type_count_volunteer_unadjusted,
+    staff_type_count_other_unadjusted,
+    center_time_zone,
+    datetime as center_local_datetime_slot,
+    case
+        when center_time_zone = '(UTC +10) - ChsT - Chamorro Standard Time' and daylights_savings = 'False'
+        then datetime - interval '15 HOURS'
+        when center_time_zone = '(UTC +10) - ChsT - Chamorro Standard Time' and daylights_savings = 'True'
+        then CONVERT_TIMEZONE('Pacific/Guam', 'America/New_York', datetime::timestamp)
+        when center_time_zone = '(UTC -4) - AST - Atlantic Standard Time' and daylights_savings = 'False'
+        then datetime - interval '1 HOUR'
+        when center_time_zone = '(UTC -4) - AST - Atlantic Standard Time' and daylights_savings = 'True'
+        then CONVERT_TIMEZONE('America/Puerto_Rico', 'America/New_York', datetime::timestamp)
+        when center_time_zone = '(UTC -5) - EST - Eastern Standard Time' and daylights_savings = 'False'
+        then datetime
+        when center_time_zone = '(UTC -5) - EST - Eastern Standard Time' and daylights_savings = 'True'
+        then datetime
+        when center_time_zone = '(UTC -6) - CST - Central Standard Time' and daylights_savings = 'False'
+        then datetime + interval '1 HOUR'
+        when center_time_zone = '(UTC -6) - CST - Central Standard Time' and daylights_savings = 'True'
+        then CONVERT_TIMEZONE('America/Chicago', 'America/New_York', datetime::timestamp)
+        when center_time_zone = '(UTC -7) - MST - Mountain Standard Time' and daylights_savings = 'False'
+        then datetime + interval '2 HOURS'
+        when center_time_zone = '(UTC -7) - MST - Mountain Standard Time' and daylights_savings = 'True'
+        then CONVERT_TIMEZONE('America/Denver', 'America/New_York', datetime::timestamp)
+        when center_time_zone = '(UTC -8) - PST - Pacific Standard Time' and daylights_savings = 'False'
+        then datetime + interval '3 HOURS'
+        when center_time_zone = '(UTC -8) - PST - Pacific Standard Time' and daylights_savings = 'True'
+        then CONVERT_TIMEZONE('America/Los_Angeles', 'America/New_York', datetime::timestamp)
+        when center_time_zone = '(UTC -9) - AKST - Alaska Standard Time' and daylights_savings = 'False'
+        then datetime + interval '4 HOURS'
+        when center_time_zone = '(UTC -9) - AKST - Alaska Standard Time' and daylights_savings = 'True'
+        then CONVERT_TIMEZONE('America/Anchorage', 'America/New_York', datetime::timestamp)
+        when center_time_zone = '(UTC -10) - HST - Hawaii Standard Time' and daylights_savings = 'False'
+        then datetime + interval '5 HOURS'
+        when center_time_zone = '(UTC -10) - HST - Hawaii Standard Time' and daylights_savings = 'True'
+        then CONVERT_TIMEZONE('Pacific/Honolulu', 'America/New_York', datetime::timestamp)
+        else NULL
+    end as est_converted_datetime,
+     to_date(datetime) as local_shift_date,
+     to_date(est_converted_datetime) as est_shift_date,
+     date_part('hour',CAST(TO_TIME(SUBSTR(est_converted_datetime, 12)) as TIME)) as shift_hour_eastern_timeslot_hour,
+     date_part('minute',CAST(TO_TIME(SUBSTR(est_converted_datetime, 12)) as TIME)) as shift_hour_eastern_timeslot_minute,
+     to_time(Concat(CAST(shift_hour_eastern_timeslot_hour as VARCHAR()) ||':'||CAST(shift_hour_eastern_timeslot_minute AS VARCHAR()))) as shift_hour_eastern_timeslot,
+     cast(concat(TO_DATE(est_converted_datetime), ' ',  TO_TIME(SUBSTR(est_converted_datetime, 12))) as DATETIME) as shift_est_date_time
+     from staffing_agg_all_networks),
+
+call_chat_text_data as (
+    select 
+    case 
+        when modality = 'Chat' THEN 'Chat/Text' WHEN modality ='Text' THEN 'Chat/Text' else modality
+    end as modality,
+    center_key,
+    center_name,
+    center_city,
+    center_county,
+    center_zip,
+    center_lat,
+    center_lng,
+    center_state,
+    initiated_date_est, -----date_est_value: 2024-05-14
+    --initiated_datetime_est,
+    date_part('HOUR',initiated_datetime_est) as initiated_hour_est,
+    -- CASE 
+    --     when length(date_part('HOUR',initiated_datetime_est)) < 2 then CAST(concat(0, date_part('HOUR',initiated_datetime_est))::string as integer)
+    --     else CAST(date_part('HOUR',initiated_datetime_est) as integer)
+    -- end as initiated_hour_est,
+    case 
+            when CAST(date_part('minute',initiated_datetime_est) as integer) >= 0 and CAST(date_part('minute',initiated_datetime_est) as integer) < 15 then 0
+            when CAST(date_part('minute',initiated_datetime_est) as integer) >= 15 and CAST(date_part('minute',initiated_datetime_est) as integer) < 30 then 15
+            when CAST(date_part('minute',initiated_datetime_est) as integer) >= 30 and CAST(date_part('minute',initiated_datetime_est) as integer) < 45 then 30
+            when CAST(date_part('minute',initiated_datetime_est) as integer) >= 45 and CAST(date_part('minute',initiated_datetime_est) as integer) <= 60 then 45
+            else null
+        end as initiated_min_est,
+    to_timestamp(concat(initiated_date_est, ' ', initiated_hour_est, ':', initiated_min_est, ':', '00')) as interval_timestamp,
+    subnetwork,
+    count(routed) as routed,
+    count(answered) as answered,
+    count(abandoned) as abandoned,
+    sum(time_to_answer_overall) as time_to_answer_overall,
+    sum(time_to_abandon_overall) as time_to_abandon_overall,
+    sum(talk_time_overall) as talk_time_overall
+    from ANALYTICS.MARTS.CORE_988_REPORTING_LAYER
+    where initiated_datetime_est >= (select TO_TIMESTAMP(date_day) as interval_val from ANALYTICS.MARTS.DIM_DATES
+            where iso_week_of_year = WEEKISO(CURRENT_DATE() - interval '2 WEEKS')
+            and YEAR_NUMBER = DATE_PART('year', CURRENT_DATE())
+            and day_of_week_iso = 1)
+    
+    -- testing!        
+    --and center_key = 'WV304000'
+
+    group by 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14), 
+
+call_chat_text_data_total_network as (
+
+    select 
+    case 
+        when modality = 'Chat' THEN 'Chat/Text' WHEN modality ='Text' THEN 'Chat/Text' else modality
+    end as modality,
+    center_key,
+    center_name,
+    center_city,
+    center_county,
+    center_zip,
+    center_lat,
+    center_lng,
+    center_state,
+    initiated_date_est,
+    date_part('HOUR',initiated_datetime_est) as initiated_hour_est,
+    case 
+            when CAST(date_part('minute',initiated_datetime_est) as integer) >= 0 and CAST(date_part('minute',initiated_datetime_est) as integer) < 15 then 0
+            when CAST(date_part('minute',initiated_datetime_est) as integer) >= 15 and CAST(date_part('minute',initiated_datetime_est) as integer) < 30 then 15
+            when CAST(date_part('minute',initiated_datetime_est) as integer) >= 30 and CAST(date_part('minute',initiated_datetime_est) as integer) < 45 then 30
+            when CAST(date_part('minute',initiated_datetime_est) as integer) >= 45 and CAST(date_part('minute',initiated_datetime_est) as integer) <= 60 then 45
+            else null
+        end as initiated_min_est,
+    to_timestamp(concat(initiated_date_est, ' ', initiated_hour_est, ':', initiated_min_est, ':', '00')) as interval_timestamp,
+    '988 Total Network' as subnetwork,
+    count(routed) as routed,
+    count(answered) as answered,
+    count(abandoned) as abandoned,
+    sum(time_to_answer_overall) as time_to_answer_overall,
+    sum(time_to_abandon_overall) as time_to_abandon_overall,
+    sum(talk_time_overall) as talk_time_overall
+    from ANALYTICS.MARTS.CORE_988_REPORTING_LAYER
+    where initiated_datetime_est >= (select TO_TIMESTAMP(date_day) as interval_val from ANALYTICS.MARTS.DIM_DATES
+            where iso_week_of_year = WEEKISO(CURRENT_DATE() - interval '2 WEEKS')
+            and YEAR_NUMBER = DATE_PART('year', CURRENT_DATE())
+            and day_of_week_iso = 1)
+            
+    -- testing!
+    --and center_key = 'WV304000'
+
+    group by 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14), 
+
+call_chat_text_data_complete_set as (
+    select 
+    modality,
+    center_key,
+    center_name,
+    center_city,
+    center_county,
+    center_zip,
+    center_lat,
+    center_lng,
+    center_state,
+    initiated_date_est,
+    initiated_hour_est,
+    initiated_min_est,
+    interval_timestamp,
+    subnetwork,
+    routed,
+    answered,
+    abandoned,
+    time_to_answer_overall,
+    time_to_abandon_overall,
+    talk_time_overall 
+    from call_chat_text_data
+    union 
+    select 
+    modality,
+    center_key,
+    center_name,
+    center_city,
+    center_county,
+    center_zip,
+    center_lat,
+    center_lng,
+    center_state,
+    initiated_date_est,
+    initiated_hour_est,
+    initiated_min_est,
+    interval_timestamp,
+    subnetwork,
+    routed,
+    answered,
+    abandoned,
+    time_to_answer_overall,
+    time_to_abandon_overall,
+    talk_time_overall 
+    from call_chat_text_data_total_network),
+
+center_ve_lookup as (
+    select 
+        distinct
+        center_key as center_key_lkup,
+        max(center_state) as center_state_lkup
+    from call_chat_text_data
+    group by 1),
+
+final as (
+    select
+        ve.crisis_center_key,
+        ve.center_name,
+        cntr.center_state_lkup,
+        ve.center_time_zone,
+        ve.modality,
+        ve.sub_network,
+        ccc.subnetwork,
+        ve.center_local_datetime_slot,
+        ve.local_shift_date,
+        ve.est_shift_date,
+        ve.est_converted_datetime,
+        to_time(substr(est_converted_datetime, 12)) as shift_hour_eastern_timeslot,
+        ve.shift_hour_eastern_timeslot_hour,
+        ve.shift_hour_eastern_timeslot_minute,
+        ve.shift_est_date_time,
+        ve.staff_type_count_adjusted,
+        ve.staff_type_count_unadjusted,
+        ve.staff_type_count_full_time_adjusted,
+        ve.staff_type_count_part_time_adjusted,
+        ve.staff_type_count_peer_adjusted,
+        ve.staff_type_count_volunteer_adjusted,
+        ve.staff_type_count_other_adjusted,
+        ve.staff_type_count_full_time_unadjusted,
+        ve.staff_type_count_part_time_unadjusted,
+        ve.staff_type_count_peer_unadjusted,
+        ve.staff_type_count_volunteer_unadjusted,
+        ve.staff_type_count_other_unadjusted,
+        ccc.modality as modality_ccc,
+        ccc.center_key,
+        ccc.center_name as center_name_ccc,
+        ccc.center_city,
+        ccc.center_county,
+        ccc.center_zip,
+        ccc.center_lat,
+        ccc.center_lng,
+        ccc.center_state,
+        ccc.initiated_date_est as date_est_value,
+        interval_timestamp,
+        ccc.initiated_hour_est,
+        ccc.initiated_min_est,
+        ccc.routed,
+        ccc.answered,
+        ccc.abandoned,
+        ccc.time_to_answer_overall,
+        ccc.time_to_abandon_overall,
+        ccc.talk_time_overall,
+        case when ccc.center_key is null then ve.crisis_center_key else ccc.center_key end as unified_center_key,
+        case when ccc.center_name is null then REGEXP_REPLACE(ve.center_name, '\\s\\(.*$', '') else REGEXP_REPLACE(ccc.center_name, '\\s\\(.*$', '') end as unified_center_name,
+        case when ccc.center_state is null then cntr.center_state_lkup else ccc.center_state end as unified_center_state,
+        case when ccc.subnetwork is null then ve.sub_network else ccc.subnetwork end as unified_subnetwork,
+        case when ccc.modality is null then ve.modality else ccc.modality end as unified_modality,    
+        case when ve.shift_est_date_time is null then interval_timestamp else ve.shift_est_date_time end as unified_date_time,
+        case when ve.center_local_datetime_slot is null then interval_timestamp else cast(concat(TO_DATE(ve.center_local_datetime_slot), ' ',  TO_TIME(SUBSTR(ve.center_local_datetime_slot, 12))) as DATETIME) end as unified_date_time_local
+    from ve_form_data ve
+    full outer join call_chat_text_data_complete_set ccc
+    on ve.crisis_center_key = ccc.center_key
+    and ve.modality = (case when ccc.modality = 'Chat' THEN 'Chat/Text' WHEN ccc.modality ='Text' THEN 'Chat/Text' else ccc.modality end)
+    and ve.est_shift_date = ccc.initiated_date_est
+    and ve.shift_hour_eastern_timeslot_hour = ccc.initiated_hour_est 
+    and ve.shift_hour_eastern_timeslot_minute = ccc.initiated_min_est
+    and ve.sub_network = ccc.subnetwork
+    left join center_ve_lookup cntr
+    on ve.crisis_center_key = cntr.center_key_lkup
+    where est_converted_datetime >= (select TO_TIMESTAMP(date_day) as interval_val from ANALYTICS.MARTS.DIM_DATES
+            where iso_week_of_year = WEEKISO(CURRENT_DATE() - interval '2 WEEKS')
+            and YEAR_NUMBER = DATE_PART('year', CURRENT_DATE())
+            and day_of_week_iso = 1)) 
+
+select * from final
+--where current_date > unified_date_time_local
