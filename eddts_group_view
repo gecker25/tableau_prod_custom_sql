@@ -1,0 +1,22 @@
+Select 
+FG.ID AS "Group ID", 
+FG.group_name AS "Group Name", 
+FG.admin_ids AS "Admin IDs", 
+FG.Notes as "Group Notes", 
+FG.USER_ID AS "User ID", 
+P.PERMISSION, 
+P.path, 
+P.recursive, 
+FU.username, 
+FU.created_at AS "User Create Date", 
+FU.disabled, 
+FU.email, 
+FU.first_login_at AS "User First Login", 
+FU.name AS "User Name", 
+FU.company, 
+FU.site_admin AS "Site Admin",
+FU.notes AS "User Notes", 
+FU.time_zone AS "Time Zone"
+from "ANALYTICS"."MARTS"."USER_GROUPS" FG
+LEFT JOIN "ANALYTICS"."MARTS"."USERS" FU ON FG.USER_ID=FU.ID
+LEFT JOIN "ANALYTICS"."MARTS"."PERMISSIONS" P ON FG.ID = P.group_id
