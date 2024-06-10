@@ -1,0 +1,3 @@
+select state, SUM(population) as population from
+staging.lifeline_s3.uscounties
+group by state
