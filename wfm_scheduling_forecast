@@ -1,0 +1,285 @@
+with
+    forecasting_base_set as (
+
+        select
+            modality,
+            network,
+            center_key,
+            daylights_savings,
+            time_zone as center_time_zone,
+            date_est,
+            hour_est::int as hour_est,
+            to_timestamp(
+                concat(date_est, ' ', hour_est::int, ':', '00', ':', '00')
+            ) as interval_timestamp,
+            predicted_offered,
+            predicted_offered_low,
+            predicted_offered_high,
+            expected_answered,
+            expected_answered_low,
+            expected_answered_high,
+            avg_answer_rate,
+            percentile_05_answer_rate,
+            percentile_95_answer_rate,
+            last_attempt_est,
+            run_date,
+            volatility
+        from staging.aiml.center_level_volume_forecasting
+        join
+            staging.cmt_salesforce.cmt_account cmt_account
+            on cmt_account.crisis_center_key
+            = center_level_volume_forecasting.center_key
+        where
+            network in ('LGBTQ', 'Spanish', 'National-Backup', 'Native', 'Local')
+            and modality = 'Calls'
+            and run_date
+            = (select max(run_date) from staging.aiml.center_level_volume_forecasting)
+            -- testing!
+            --and center_key = 'WV304000'
+
+    ),
+    forecasting_local_conversion as (
+
+        select
+            modality,
+            network,
+            center_key,
+            predicted_offered,
+            predicted_offered_low,
+            predicted_offered_high,
+            expected_answered,
+            expected_answered_low,
+            expected_answered_high,
+            avg_answer_rate,
+            percentile_05_answer_rate,
+            percentile_95_answer_rate,
+            last_attempt_est,
+            run_date,
+            volatility,
+            center_time_zone,
+            daylights_savings,
+            interval_timestamp as est_interval_timestamp,
+            case
+                when
+                    center_time_zone = '(UTC +10) - ChsT - Chamorro Standard Time'
+                    and daylights_savings = 'False'
+                then interval_timestamp + interval '15 HOURS'
+                when
+                    center_time_zone = '(UTC +10) - ChsT - Chamorro Standard Time'
+                    and daylights_savings = 'True'
+                then
+                    convert_timezone(
+                        'America/New_York',
+                        'Pacific/Guam',
+                        interval_timestamp::timestamp
+                    )
+                when
+                    center_time_zone = '(UTC -4) - AST - Atlantic Standard Time'
+                    and daylights_savings = 'False'
+                then interval_timestamp + interval '1 HOUR'
+                when
+                    center_time_zone = '(UTC -4) - AST - Atlantic Standard Time'
+                    and daylights_savings = 'True'
+                then
+                    convert_timezone(
+                        'America/New_York',
+                        'America/Puerto_Rico',
+                        interval_timestamp::timestamp
+                    )
+                when
+                    center_time_zone = '(UTC -5) - EST - Eastern Standard Time'
+                    and daylights_savings = 'False'
+                then interval_timestamp
+                when
+                    center_time_zone = '(UTC -5) - EST - Eastern Standard Time'
+                    and daylights_savings = 'True'
+                then interval_timestamp
+                when
+                    center_time_zone = '(UTC -6) - CST - Central Standard Time'
+                    and daylights_savings = 'False'
+                then interval_timestamp - interval '1 HOUR'
+                when
+                    center_time_zone = '(UTC -6) - CST - Central Standard Time'
+                    and daylights_savings = 'True'
+                then
+                    convert_timezone(
+                        'America/New_York',
+                        'America/Chicago',
+                        interval_timestamp::timestamp
+                    )
+                when
+                    center_time_zone = '(UTC -7) - MST - Mountain Standard Time'
+                    and daylights_savings = 'False'
+                then interval_timestamp - interval '2 HOURS'
+                when
+                    center_time_zone = '(UTC -7) - MST - Mountain Standard Time'
+                    and daylights_savings = 'True'
+                then
+                    convert_timezone(
+                        'America/New_York',
+                        'America/Denver',
+                        interval_timestamp::timestamp
+                    )
+                when
+                    center_time_zone = '(UTC -8) - PST - Pacific Standard Time'
+                    and daylights_savings = 'False'
+                then interval_timestamp - interval '3 HOURS'
+                when
+                    center_time_zone = '(UTC -8) - PST - Pacific Standard Time'
+                    and daylights_savings = 'True'
+                then
+                    convert_timezone(
+                        'America/New_York',
+                        'America/Los_Angeles',
+                        interval_timestamp::timestamp
+                    )
+                when
+                    center_time_zone = '(UTC -9) - AKST - Alaska Standard Time'
+                    and daylights_savings = 'False'
+                then interval_timestamp - interval '4 HOURS'
+                when
+                    center_time_zone = '(UTC -9) - AKST - Alaska Standard Time'
+                    and daylights_savings = 'True'
+                then
+                    convert_timezone(
+                        'America/New_York',
+                        'America/Anchorage',
+                        interval_timestamp::timestamp
+                    )
+                when
+                    center_time_zone = '(UTC -10) - HST - Hawaii Standard Time'
+                    and daylights_savings = 'False'
+                then interval_timestamp - interval '5 HOURS'
+                when
+                    center_time_zone = '(UTC -10) - HST - Hawaii Standard Time'
+                    and daylights_savings = 'True'
+                then
+                    convert_timezone(
+                        'America/New_York',
+                        'Pacific/Honolulu',
+                        interval_timestamp::timestamp
+                    )
+                else null
+            end as local_interval_timestamp
+        from forecasting_base_set
+
+    ),
+    forecasting_final_set as (
+
+        select
+            modality,
+            network,
+            center_key,
+            predicted_offered,
+            predicted_offered_low,
+            predicted_offered_high,
+            expected_answered,
+            expected_answered_low,
+            expected_answered_high,
+            avg_answer_rate,
+            percentile_05_answer_rate,
+            percentile_95_answer_rate,
+            last_attempt_est,
+            run_date,
+            volatility,
+            center_time_zone,
+            daylights_savings,
+            est_interval_timestamp,
+            substr(est_interval_timestamp, 1, 10) as date_est,
+            date_part('HOUR', est_interval_timestamp) as hour_est,
+            local_interval_timestamp,
+            substr(local_interval_timestamp, 1, 10) as date_local,
+            date_part('HOUR', local_interval_timestamp) as hour_local
+        from forecasting_local_conversion
+
+    ),
+    total_network as (
+
+        select
+
+            modality,
+            '988 Total Network' as network,
+            center_key,
+            last_attempt_est,
+            run_date,
+            volatility,
+            center_time_zone,
+            daylights_savings,
+            est_interval_timestamp,
+            date_est,
+            hour_est,
+            local_interval_timestamp,
+            date_local,
+            hour_local,
+            avg(percentile_05_answer_rate) as percentile_05_answer_rate,
+            avg(percentile_95_answer_rate) as percentile_95_answer_rate,
+            sum(predicted_offered) as predicted_offered,
+            sum(predicted_offered_low) as predicted_offered_low,
+            sum(predicted_offered_high) predicted_offered_high,
+            sum(expected_answered) as expected_answered,
+            sum(expected_answered_low) as expected_answered_low,
+            sum(expected_answered_high) as expected_answered_high,
+            sum(avg_answer_rate) as avg_answer_rate,
+        from forecasting_final_set
+        group by 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14
+
+    ),
+    full_set as (
+
+        select
+            modality,
+            network,
+            center_key,
+            predicted_offered,
+            predicted_offered_low,
+            predicted_offered_high,
+            expected_answered,
+            expected_answered_low,
+            expected_answered_high,
+            avg_answer_rate,
+            percentile_05_answer_rate,
+            percentile_95_answer_rate,
+            last_attempt_est,
+            run_date,
+            volatility,
+            center_time_zone,
+            daylights_savings,
+            est_interval_timestamp,
+            date_est,
+            hour_est,
+            local_interval_timestamp,
+            date_local,
+            hour_local
+        from forecasting_final_set
+        union
+        select
+            modality,
+            network,
+            center_key,
+            predicted_offered,
+            predicted_offered_low,
+            predicted_offered_high,
+            expected_answered,
+            expected_answered_low,
+            expected_answered_high,
+            avg_answer_rate,
+            percentile_05_answer_rate,
+            percentile_95_answer_rate,
+            last_attempt_est,
+            run_date,
+            volatility,
+            center_time_zone,
+            daylights_savings,
+            est_interval_timestamp,
+            date_est,
+            hour_est,
+            local_interval_timestamp,
+            date_local,
+            hour_local
+        from total_network
+
+    ),
+    final as (select * from full_set)
+
+select *
+from final
