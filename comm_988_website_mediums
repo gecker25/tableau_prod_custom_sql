@@ -1,0 +1,4 @@
+Select 
+*
+from analytics.intermediate.int_google_analytics_988_website_mediums
+WHERE Date >= '11/1/2023'
