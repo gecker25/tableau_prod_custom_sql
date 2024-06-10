@@ -1,0 +1,75 @@
+Select     
+GTR.APPLICABLE_DATE, 
+GTR.GEO_NAME AS "GEONAME",
+GTR.relative_interest, 
+GTR.keyword, 
+GTR.timeframe_used, 
+GTR.DATE_RUN,
+CASE 
+WHEN  GTR.GEO_NAME = 'Alabama' THEN 'AL' 
+WHEN GTR.GEO_NAME = 'Alaska' THEN 'AK' 
+WHEN GTR.GEO_NAME = 'Arizona' THEN 'AZ' 
+WHEN GTR.GEO_NAME ='Arkansas' THEN 'AR' 
+WHEN GTR.GEO_NAME = 'California' THEN 'CA' 
+WHEN GTR.GEO_NAME ='Colorado' THEN 'CO' 
+WHEN GTR.GEO_NAME ='Connecticut' THEN 'CT' 
+WHEN GTR.GEO_NAME ='Delaware' THEN 'DE' 
+WHEN GTR.GEO_NAME = 'District of Columbia' THEN 'DC' 
+WHEN GTR.GEO_NAME ='Florida' THEN 'FL' 
+WHEN GTR.GEO_NAME ='Georgia' THEN 'GA' 
+WHEN GTR.GEO_NAME ='Hawaii' THEN 'HI' 
+WHEN GTR.GEO_NAME ='Idaho' THEN 'ID' 
+WHEN GTR.GEO_NAME ='Illinois' THEN 'IL' 
+WHEN GTR.GEO_NAME ='Indiana' THEN 'IN' 
+WHEN GTR.GEO_NAME ='Iowa' THEN 'IA' 
+WHEN GTR.GEO_NAME ='Kansas' THEN 'KS' 
+WHEN GTR.GEO_NAME ='Kentucky' THEN 'KY' 
+WHEN GTR.GEO_NAME ='Louisiana' THEN 'LA' 
+WHEN GTR.GEO_NAME ='Maine' THEN 'ME' 
+WHEN GTR.GEO_NAME ='Maryland' THEN 'MD' 
+WHEN GTR.GEO_NAME ='Massachusetts' THEN 'MA' 
+WHEN GTR.GEO_NAME ='Michigan' THEN 'MI' 
+WHEN GTR.GEO_NAME ='Minnesota' THEN 'MN' 
+WHEN GTR.GEO_NAME ='Mississippi' THEN 'MS' 
+WHEN GTR.GEO_NAME ='Missouri' THEN 'MO' 
+WHEN GTR.GEO_NAME ='Montana' THEN 'MT' 
+WHEN GTR.GEO_NAME ='Nebraska' THEN 'NE' 
+WHEN GTR.GEO_NAME ='Nevada' THEN 'NV' 
+WHEN GTR.GEO_NAME ='New Hampshire' THEN 'NH' 
+WHEN GTR.GEO_NAME ='New Jersey' THEN 'NJ' 
+WHEN GTR.GEO_NAME ='New Mexico' THEN 'NM' 
+WHEN GTR.GEO_NAME ='New York' THEN 'NY' 
+WHEN GTR.GEO_NAME ='North Carolina' THEN 'NC' 
+WHEN GTR.GEO_NAME ='North Dakota' THEN 'ND' 
+WHEN GTR.GEO_NAME ='Ohio' THEN 'OH' 
+WHEN GTR.GEO_NAME ='Oklahoma' THEN 'OK' 
+WHEN GTR.GEO_NAME ='Oregon' THEN 'OR' 
+WHEN GTR.GEO_NAME ='Pennsylvania' THEN 'PA' 
+WHEN GTR.GEO_NAME ='Rhode Island' THEN 'RI' 
+WHEN GTR.GEO_NAME ='South Carolina' THEN 'SC' 
+WHEN GTR.GEO_NAME ='South Dakota' THEN 'SD' 
+WHEN GTR.GEO_NAME ='Tennessee' THEN 'TN' 
+WHEN GTR.GEO_NAME ='Texas' THEN 'TX' 
+WHEN GTR.GEO_NAME ='Utah' THEN 'UT' 
+WHEN GTR.GEO_NAME ='Vermont' THEN 'VT' 
+WHEN GTR.GEO_NAME ='Virginia' THEN 'VA' 
+WHEN GTR.GEO_NAME ='Washington' THEN 'WA' 
+WHEN GTR.GEO_NAME ='West Virginia' THEN 'WV' 
+WHEN GTR.GEO_NAME ='Wisconsin' THEN 'WI' 
+WHEN GTR.GEO_NAME ='Wyoming' THEN 'WY' 
+ELSE '' 
+END AS "STATE"
+FROM "ANALYTICS"."MARTS"."GOOGLE_TRENDS_INTEREST_BY_REGION" GTR
+
+where DATE_RUN <= (Select MAX(Date_run)
+                    FROM (
+                    Select date_run
+                    FROM "ANALYTICS"."MARTS"."GOOGLE_TRENDS_INTEREST_OVER_TIME" "INTEREST_OVER_TIME"
+                    group by  date_run
+                    having count(distinct keyword) = 5 ))
+And DATE_RUN >= DATEADD(month, -1, (Select MAX(Date_run)
+                    FROM (
+                    Select date_run
+                    FROM "ANALYTICS"."MARTS"."GOOGLE_TRENDS_INTEREST_OVER_TIME" "INTEREST_OVER_TIME"
+                    group by  date_run
+                    having count(distinct keyword) = 5 )))
