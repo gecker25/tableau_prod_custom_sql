@@ -1,0 +1,14 @@
+SELECT *
+FROM "ANALYTICS"."MARTS"."GOOGLE_TRENDS_RELATED_QUERIES_TOP" 
+where  DATE_RUN <= (Select MAX(Date_run)
+                    FROM (
+                    Select date_run
+                    FROM "ANALYTICS"."MARTS"."GOOGLE_TRENDS_INTEREST_OVER_TIME" "INTEREST_OVER_TIME"
+                    group by  date_run
+                    having count(distinct keyword) = 5 ))
+And DATE_RUN >= DATEADD(month, -1, (Select MAX(Date_run)
+                    FROM (
+                    Select date_run
+                    FROM "ANALYTICS"."MARTS"."GOOGLE_TRENDS_INTEREST_OVER_TIME" "INTEREST_OVER_TIME"
+                    group by  date_run
+                    having count(distinct keyword) = 5 )))
