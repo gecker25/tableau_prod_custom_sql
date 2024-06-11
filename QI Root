@@ -1,0 +1,4085 @@
+with
+    form_submissions as (
+        select
+            form_submissions.id,
+            form_submissions.interaction_id,
+            form_submissions.name,
+            form_submissions.submitted_by,
+            form_submissions.submitted_date,
+            form_submissions.legacy_key,
+            cmt_users.email,
+            form_submissions.last_activity_date,
+            form_submissions.last_modified_by_id,
+            form_submissions.last_modified_date,
+            form_submissions.qi_interaction_id,
+            centers.crisis_center_key,
+            centers.name as center_name,
+            centers.id as account_id,
+            form_submissions.record_type_id,
+            case
+                when record_type.developer_name = 'NM_QI_Chat_Text_Review'
+                then 'Chat'
+                when record_type.developer_name = 'NM_QI_Calling_Review'
+                then 'Call'
+                when record_type.developer_name = 'NM_QI_Video_Review'
+                then 'Video'
+                else null
+            end as modality,
+            form_submissions.nature_of_the_conversation,
+            case
+                when cmt_users.user_type = 'Standard'
+                then 'Internal'
+                when cmt_users.user_type = 'PowerCustomerSuccess'
+                then 'External'
+            end as submitter,
+            form_submissions.NM_SUPERVISOR_REVIEWER_C_TKN,
+            form_submissions.NM_COUNSELORS_NAME_C_TKN,
+            form_submissions.NM_REPORT_NUMBER_C,
+            form_submissions.network,
+            form_submissions.date_time_of_interaction,
+            form_submissions.created_date,
+            form_submissions.interaction_review_needed,
+            form_submissions.feedback,
+            form_submissions.training_tools,
+           -- pivot question set
+            active_engagement_improvements,
+            ch_active_engagement_improvements,
+            v_active_engagement_improvements,
+            active_engagement_strengths,
+            ch_active_engagement_strengths,
+            v_active_engagement_strengths,
+            exploring_situation_improvements,
+            ch_exploring_situation_improvements,
+            v_exploring_situation_improvements,
+            exploring_situation_strengths,
+            ch_exploring_situation_strengths,
+            v_exploring_situation_strengths,
+            imminent_risks_improvements,
+            ch_imminent_risks_improvements,
+            v_imminent_risks_improvements,
+            imminent_risk_strengths,
+            ch_imminent_risk_strengths,
+            v_imminent_risk_strengths,
+            problem_solving_improvements,
+            ch_problem_solving_improvements,
+            v_problem_solving_improvements,
+            problem_solving_strengths,
+            ch_problem_solving_strengths,
+            v_problem_solving_strengths,
+            rescue_improvements,
+            ch_rescue_improvements,
+            v_rescue_improvements,
+            rescue_strengths,
+            ch_rescue_strengths,
+            v_rescue_strengths,
+            saftey_assessment_improvement,
+            ch_saftey_assessment_improvement,
+            v_saftey_assessment_improvement,
+            safety_assessment_strengths,
+            ch_safety_assessment_strengths,
+            v_safety_assessment_strengths,
+            safety_planning_improvements,
+            ch_safety_planning_improvements,
+            v_safety_planning_improvements,
+            safety_planning_strengths,
+            ch_safety_planning_strengths,
+            v_safety_planning_strengths,
+            wrapping_up_improvements,
+            ch_wrapping_up_improvements,
+            v_wrapping_up_improvements,
+            wrapping_up_strengths,
+            ch_wrapping_up_strengths,
+            v_wrapping_up_strengths,
+            -- --- assessed fields
+            feeling_intolerably_alone,
+            substance_use,
+            perceived_burden,
+            preparatory_behaviors,
+            expressed_intent_to_die,
+            available_means,
+            feeling_trapped,
+            ambivalence,
+            sleep_disturbance,
+            increased_anxiety,
+            currently_intoxicated,
+            reasons_for_living,
+            sense_of_purpose,
+            hopelessness,
+            acute_symptoms_of_mental_illness,
+            plan_method_known,
+            engagement_with_helper,
+            social_supports,
+            history_of_violence_to_others,
+            history_of_attempts,
+            self_hate,
+            exposure_to_someone_else_s_attempt,
+            psychological_pain,
+            history_of_self_harm_nssi,
+            attempt_in_progress,
+            planning_for_future,
+            immediate_supports,
+            suicidal_ideation,
+            core_beliefs,
+            dysregulated,
+            form_submissions.documentation,
+            -- ---- counselor performance fields
+            counselor_behavior_regarding_active_engagement,
+            counselor_behavior_with_regard_to_safety_planning,
+            counselor_behavior_regarding_collaborative_problem_solving,
+            counselor_behavior_regarding_suicide_safety_assessment,
+            counselor_behavior_regarding_imminent_risk_visitor,
+            counselor_behavior_regarding_exploring_the_situation,
+            counselor_behavior_with_regard_to_rescue,
+            counselor_behavior_with_regard_to_wrapping_up_the_call,
+            
+    regexp_replace(active_engagement_other_improvement, '\\s+', ' ')
+ as active_engagement_other_improvement,
+            
+    regexp_replace(active_engagement_other_strength, '\\s+', ' ')
+ as active_engagement_other_strength,
+            
+    regexp_replace(exploring_situation_other_improvements, '\\s+', ' ')
+ as exploring_situation_other_improvements,
+            
+    regexp_replace(exploring_situation_other_strengths, '\\s+', ' ')
+ as exploring_situation_other_strengths,
+            
+    regexp_replace(imminent_risk_other_improvement, '\\s+', ' ')
+ as imminent_risk_other_improvement,
+            
+    regexp_replace(imminent_risk_other_strengths, '\\s+', ' ')
+ as imminent_risk_other_strengths,
+            
+    regexp_replace(problem_solving_other_improvement, '\\s+', ' ')
+ as problem_solving_other_improvement,
+            
+    regexp_replace(problem_solving_other_strengths, '\\s+', ' ')
+ as problem_solving_other_strengths,
+            
+    regexp_replace(rescue_other_improvements, '\\s+', ' ')
+ as rescue_other_improvements,
+            
+    regexp_replace(rescue_other_strengths, '\\s+', ' ')
+ as rescue_other_strengths,
+            
+    regexp_replace(safety_assessment_other_improvement, '\\s+', ' ')
+ as safety_assessment_other_improvement,
+            
+    regexp_replace(safety_assessment_other_strengths, '\\s+', ' ')
+ as safety_assessment_other_strengths,
+            
+    regexp_replace(safety_planning_other_improvements, '\\s+', ' ')
+ as safety_planning_other_improvements,
+            
+    regexp_replace(safety_planning_other_strengths, '\\s+', ' ')
+ as safety_planning_other_strengths,
+            
+    regexp_replace(wrapping_up_other_improvements, '\\s+', ' ')
+ as wrapping_up_other_improvements,
+            
+    regexp_replace(wrapping_up_other_strengths, '\\s+', ' ')
+ as wrapping_up_other_strengths
+
+        from STAGING.CMT_SALESFORCE_POC.POC_FORM_SUBMISSION form_submissions
+        left join
+            STAGING.CMT_SALESFORCE_POC.POC_CMT_ACCOUNT centers
+            on form_submissions.account_id = centers.id
+        left join
+            STAGING.CMT_SALESFORCE_POC.POC_CMT_USER cmt_users
+            on cmt_users.id = form_submissions.submitted_by
+        join
+            STAGING.CMT_SALESFORCE_POC.POC_RECORD_TYPE record_type
+            on record_type.id = form_submissions.record_type_id
+    ),
+
+    video_question_base as (
+        select
+            id,
+            'Video' as modality,
+            -- ACTIVE_ENGAGEMENT_IMPROVEMENTS
+            case
+                when
+                    v_active_engagement_improvements
+                    ilike '%Counselor was scripted or impersonal%'
+                then 1
+                else 0
+            end as counselor_sounded_scripted,
+            case
+                when
+                    v_active_engagement_improvements
+                    ilike '%Did not create a caring and safe climate%'
+                then 1
+                else 0
+            end as did_not_create_a_caring_and_safe_climate,
+            case
+                when
+                    v_active_engagement_improvements 
+                    ilike '%Did not demonstrate empathy and sympathy through body language and facial expressions%'
+                then 1
+                else 0
+            end as did_not_demonstrate_empathy,
+            case
+                when
+                    v_active_engagement_improvements
+                    ilike '%Did not exhibit trust, competence, or confidence%'
+                then 1
+                else 0
+            end as did_not_exhibit_trust_or_competence,
+            case
+                when
+                    v_active_engagement_improvements
+                    ilike '%Did not match the visitors pace%' 
+                then 1
+                else 0
+            end as did_not_match_the_callers_pace,
+            case
+                when
+                    v_active_engagement_improvements
+                    ilike '%Did not seem engaged or attentive%'
+                then 1
+                else 0
+            end as did_not_seem_engaged_or_attentive,
+            case
+                when v_active_engagement_improvements 
+                ilike '%Little to no paraphrasing%'
+                then 1
+                else 0
+            end as little_to_no_paraphrasing,
+            case
+                when
+                    v_active_engagement_improvements
+                    ilike 'Used expressions or signs that could come across as judgmental%'
+                then 1
+                else 0
+            end as sent_messages_could_read_as_judgmental,
+            case
+                when
+                    v_active_engagement_improvements
+                    ilike '%Used self-disclosure inappropriately%'
+                then 1
+                else 0
+            end as used_self_disclosure_inappropriately,
+            case
+                when
+                    v_active_engagement_improvements
+                    ilike '%Was repetitive in language/skills used%'
+                then 1
+                else 0
+            end as was_repetitive_in_language_skills_use,
+
+            -- ACTIVE_ENGAGEMENT_STRENGTHS
+            case
+                when
+                    v_active_engagement_strengths
+                    ilike '%Conversational style versus checklist style%'
+                then 1
+                else 0
+            end as conversational_versus_checklist_style,
+            case
+                when
+                    v_active_engagement_strengths
+                    ilike '%Creates a caring and safe climate%'
+                then 1
+                else 0
+            end as created_a_caring_and_safe_climate,
+            case
+                when 
+                    v_active_engagement_strengths 
+                    ilike '%Demonstrated empathy and sympathy through body language and facial expressions%'
+                then 1
+                else 0
+            end as demonstrated_empathy,
+            case
+                when
+                    v_active_engagement_strengths
+                    ilike '%Exhibits trust, competence, and confidence%'
+                then 1
+                else 0
+            end as exhibits_trust_competence_confidence,
+            case
+                when
+                    v_active_engagement_strengths
+                    ilike '%Matched the visitors pace%'
+                then 1
+                else 0
+            end as matched_the_callers_language_and_pace,
+            case
+                when
+                    v_active_engagement_strengths
+                    ilike '%Was non-judgmental, accepting, and respectful while using expressions or signs%'
+                then 1
+                else 0
+            end as non_judgmental_accepting_respectful,
+            case
+                when
+                    v_active_engagement_strengths
+                    ilike '%Provided appropriate validation%'
+                then 1
+                else 0
+            end as provided_appropriate_validation,
+            case
+                when
+                    v_active_engagement_strengths
+                    ilike '%Reflected back visitor''s feelings%'
+                then 1
+                else 0
+            end as reflected_back_callers_feelings,
+            case
+                when
+                    v_active_engagement_strengths
+                    ilike '%Stayed engaged and in the present%'
+                then 1
+                else 0
+            end as stayed_engaged_and_in_the_present,
+            case
+                when
+                    v_active_engagement_strengths
+                    ilike '%Used self-disclosure only when appropriate%'
+                then 1
+                else 0
+            end as used_self_disclosure_when_appropriate,
+            case
+                when
+                    v_active_engagement_strengths 
+                    ilike '%Uses paraphrasing%'
+                then 1
+                else 0
+            end as uses_paraphrasing,
+
+            -- EXPLORING_SITUATION_IMPROVEMENTS
+            case
+                when
+                    v_exploring_situation_improvements
+                    ilike '%Asked several questions at a time/in a row in an interrogative manner%'
+                then 1
+                else 0
+            end as asked_questions_in_an_interrogative_form,
+            case
+                when
+                    v_exploring_situation_improvements
+                    ilike '%Did not use questions, body language, reflections, or other skills to deepen the relationship and understanding%'
+                then 1
+                else 0
+            end as did_not_deepen_the_relationship,
+            case
+                when
+                    v_exploring_situation_improvements
+                    ilike '%Did not explore presenting concerns%'
+                then 1
+                else 0
+            end as did_not_explore_presenting_concerns,
+            case
+                when
+                    v_exploring_situation_improvements
+                    ilike '%Did not give appropriate space for the visitor to share their experience and emotions%'
+                then 1
+                else 0
+            end as did_not_give_appropriate_space,
+            case
+                when
+                    v_exploring_situation_improvements
+                    ilike '%Did not identify preceding event or current triggers%'
+                then 1
+                else 0
+            end as did_not_identify_events_or_triggers,
+            case
+                when
+                    v_exploring_situation_improvements
+                    ilike '%Jumped prematurely to problem-solving%'
+                then 1
+                else 0
+            end as jumped_prematurely_to_problem_solving,
+
+            -- EXPLORING_SITUATION_STRENGTHS
+            case
+                when
+                    v_exploring_situation_strengths
+                    ilike '%Used questions, body language, reflections, or other skills to deepen the relationship and understanding%'
+                then 1
+                else 0
+            end as deepened_relationship_understanding,
+            case
+                when
+                    v_exploring_situation_strengths
+                    ilike '%Did not jump prematurely to problem-solving%'
+                then 1
+                else 0
+            end as did_not_jump_prematurely_to_problem_solving,
+            case
+                when
+                    v_exploring_situation_strengths 
+                    ilike '%Explored presenting concerns%'
+                then 1
+                else 0
+            end as explored_presenting_concerns,
+            case
+                when
+                    v_exploring_situation_strengths
+                    ilike '%Identified the event or current triggers that precipitated the interaction%'
+                then 1
+                else 0
+            end as identified_event_or_triggers,
+            case
+                when
+                    v_exploring_situation_strengths
+                    ilike '%Gave appropriate space for the visitor to share their experience and emotions%'
+                then 1
+                else 0
+            end as visitor_had_space_to_share,
+
+            -- IMMINENT_RISKS_IMPROVEMENTS
+            case
+                when
+                    v_imminent_risks_improvements
+                    ilike '%Did not ask the visitor to remove means/stay safe during the conversation%'
+                then 1
+                else 0
+            end as did_not_ask_to_stay_safe,
+            case
+                when
+                    v_imminent_risks_improvements
+                    ilike '%Did not assess visitor''s willingness and ability to take action to increase safety%'
+                then 1
+                else 0
+            end as did_not_assess_ability_to_increase_safety,
+            case
+                when
+                    v_imminent_risks_improvements
+                    ilike '%Did not consult supervisor regarding imminent risk situation%'
+                then 1
+                else 0
+            end as did_not_consult_supervisor,
+            case
+                when
+                    v_imminent_risks_improvements
+                    ilike '%Did not explore options with visitor to get immediate in-person support%'
+                then 1
+                else 0
+            end as did_not_explore_immediate_support_option,
+            case
+                when
+                    v_imminent_risks_improvements
+                    ilike '%Did not identify least invasive intervention%'
+                then 1
+                else 0
+            end as did_not_identify_least_invasive_intervention,
+            case
+                when
+                    v_imminent_risks_improvements
+                    ilike '%Did not identify or assess as a potentially imminent risk situation despite clear imminent risk factors%'
+                then 1
+                else 0
+            end as imminent_risk_situation_not_assessed,
+            case
+                when
+                    v_imminent_risks_improvements
+                    ilike '%Threatened involuntary emergency intervention (active rescue) as a way to elicit cooperation from visitor%'
+                then 1
+                else 0
+            end as threatened_active_rescue,
+
+            -- IMMINENT_RISK_STRENGTHS
+            case
+                when
+                    v_imminent_risk_strengths
+                    ilike '%Asked the visitor to remove means/stay safe during the conversation%'
+                then 1
+                else 0
+            end as asked_visitor_to_stay_safe,
+            case
+                when
+                    v_imminent_risk_strengths
+                    ilike '%Assessed visitor''s willingness and ability to take action to increase safety%'
+                then 1
+                else 0
+            end as assessed_willingness_to_reduce_risk,
+            case
+                when
+                    v_imminent_risk_strengths
+                    ilike '%Consulted supervisor regarding imminent risk situation%'
+                then 1
+                else 0
+            end as consulted_supervisor,
+            case
+                when
+                    v_imminent_risk_strengths
+                    ilike '%Explored options with visitor to get immediate in-person support%'
+                    then 1
+                    else 0
+            end as explored_options_for_inperson_support,
+            case
+                when
+                    v_imminent_risk_strengths
+                    ilike '%Identified and handled as imminent risk situation%'
+                then 1
+                else 0
+            end as identified_imminent_risk_situation,
+            case
+                when
+                    v_imminent_risk_strengths
+                    ilike '%Identified least invasive intervention%'
+                then 1
+                else 0
+            end as identified_least_invasive_intervention,
+
+            -- PROBLEM_SOLVING_IMPROVEMENTS
+            case
+                when
+                    v_problem_solving_improvements
+                    ilike '%Did not appropriately handle offering referrals%'
+                then 1
+                else 0
+            end as did_not_appropriately_handle_referral,
+            case
+                when
+                    v_problem_solving_improvements
+                    ilike '%Did not explore pros/cons of alternatives%'
+                then 1
+                else 0
+            end as did_not_explore_pros_cons_of_alternatives,
+            case
+                when
+                    v_problem_solving_improvements
+                    ilike '%Did not explore what the visitor has tried to do to solve the problem%'
+                then 1
+                else 0
+            end as did_not_explore_visitors_solutions,
+            case
+                when
+                    v_problem_solving_improvements
+                    ilike '%Did not help visitor identify and prioritize problems, needs, and wants%'
+                then 1
+                else 0
+            end as did_not_help_visitor_identify_problem,
+            case
+                when
+                    v_problem_solving_improvements
+                    ilike '%Did not work with the visitor to create a plan that will work for them%'
+                then 1
+                else 0
+            end as did_not_work_with_visitor_to_create_a_plan,
+            case
+                when 
+                    v_problem_solving_improvements 
+                    ilike '%Gave advice to visitor%'
+                then 1
+                else 0
+            end as gave_advice_to_caller,
+
+            -- PROBLEM_SOLVING_STRENGTHS
+            case
+                when
+                    v_problem_solving_strengths
+                    ilike '%Avoided taking responsibility to fix the problem and give advice%'
+                then 1
+                else 0
+            end as avoided_taking_responsibility_for_fix,
+            case
+                when
+                    v_problem_solving_strengths
+                    ilike '%Explored pros/cons of alternatives%'
+                then 1
+                else 0
+            end as explored_pros_cons_of_alts,
+            case
+                when
+                    v_problem_solving_strengths
+                    ilike '%Explored what the visitor has tried to do to solve the problem%'
+                then 1
+                else 0
+            end as explored_visitors_previous_solutions,
+            case
+                when
+                    v_problem_solving_strengths
+                    ilike '%Appropriately handled offering referrals and resources%'
+                then 1
+                else 0
+            end as handled_offering_referrals_and_resources,
+            case
+                when
+                    v_problem_solving_strengths
+                    ilike '%Helped visitor identify and prioritize problems, needs, and wants%'
+                then 1
+                else 0
+            end as helped_visitor_identify_problems,
+            case
+                when
+                    v_problem_solving_strengths
+                    ilike '%Worked with the visitor to create a plan that will work for them%'
+                then 1
+                else 0
+            end as worked_with_visitor_to_create_plan,
+
+            -- RESCUE_IMPROVEMENTS
+            case
+                when
+                    v_rescue_improvements
+                    ilike '%Did not communicate to visitor about process of emergency intervention%'
+                then 1
+                else 0
+            end as did_not_communicate_emergency_intervention_process,
+            case
+                when
+                    v_rescue_improvements
+                    ilike '%Did not attempt to initiate a collaborative emergency intervention (exclude situations where doing so would increase risk)%'
+                then 1
+                else 0
+            end as did_not_initiate_emergency_intervention,
+            case
+                when
+                    v_rescue_improvements
+                    ilike '%Did not offer a follow-up (for after the emergency intervention)%'
+                then 1
+                else 0
+            end as did_not_offer_a_follow_up,
+            case
+                when
+                    v_rescue_improvements
+                    ilike '%Failed to engage visitor or was not supportive during emergency intervention process%'
+                then 1
+                else 0
+            end as failed_to_support_during_intervention,
+            case
+                when
+                    v_rescue_improvements
+                    ilike '%Did not notify rescue of visitor''s deaf or hard of hearing status%'
+                then 1
+                else 0
+            end as no_notification_of_hearing_status,
+
+            -- RESCUE_STRENGTHS
+            case
+                when
+                    v_rescue_strengths
+                    ilike '%Attempted to initiate a collaborative emergency intervention%'
+                then 1
+                else 0
+            end as attempted_collaborative_emergency_intervention,
+            case
+                when
+                    v_rescue_strengths
+                    ilike '%Engaged visitor during emergency intervention process%'
+                then 1
+                else 0
+            end as engaged_during_emergency_intervention,
+            case
+                when
+                    v_rescue_strengths
+                    ilike '%Notified rescue of visitor''s deaf or hard of hearing status%'
+                then 1
+                else 0
+            end as notification_of_hearing_status,
+            case
+                when
+                    v_rescue_strengths
+                    ilike '%Offered visitor a follow-up (for after the rescue)%'
+                then 1
+                else 0
+            end as offered_caller_a_follow_up,
+
+            -- SAFETY_PLANNING_IMPROVEMENTS
+            case
+                when
+                    v_safety_planning_improvements
+                    ilike '%Addressed means restriction in a directive, non-collaborative way%'
+                then 1
+                else 0
+            end as addressed_means_restriction,
+            case
+                when
+                    v_safety_planning_improvements
+                    ilike '%Did not address means restriction%'
+                then 1
+                else 0
+            end as did_not_address_means_restriction,
+            case
+                when
+                    v_safety_planning_improvements
+                    ilike '%Did not collaboratively create a safety plan with visitor%'
+                then 1
+                else 0
+            end as did_not_collaboratively_create_a_plan,
+            case
+                when
+                    v_safety_planning_improvements 
+                    ilike '%Did not explore warning signs%'
+                then 1
+                else 0
+            end as did_not_explore_warning_signs,
+            case
+                when
+                    v_safety_planning_improvements
+                    ilike '%Did not identify coping skills%'
+                then 1
+                else 0
+            end as did_not_identify_coping_skills,
+            case
+                when
+                    v_safety_planning_improvements
+                    ilike '%Did not identify family members or friends who may help to resolve a crisis%'
+                then 1
+                else 0
+            end as did_not_identify_family_members,
+            case
+                when
+                    v_safety_planning_improvements
+                    ilike '%Did not identify mental health professionals to contact%'
+                then 1
+                else 0
+            end as did_not_identify_health_professionals,
+            case
+                when
+                    v_safety_planning_improvements
+                    ilike '%Did not identify possible interpretation services if they are needed%'
+                then 1
+                else 0
+            end as did_not_identify_interpret_services,
+            case
+                when
+                    v_safety_planning_improvements
+                    ilike '%Did not identify social contacts who may distract from the crisis%'
+                then 1
+                else 0
+            end as did_not_identify_social_contacts,
+            case
+                when 
+                    v_safety_planning_improvements 
+                    ilike '%No safety plan completed%'
+                then 1
+                else 0
+            end as no_safety_plan_completed,
+
+            -- SAFETY_ASSESSMENT_STRENGTHS
+            case
+                when
+                    v_safety_assessment_strengths
+                    ilike '%Assessed thoughts of suicide in the past few days, including today (Lifeline Question #1)%'
+                then 1
+                else 0
+            end as assessed_current_suicidal_ideation,
+            case
+                when
+                    v_safety_assessment_strengths
+                    ilike '%Assessed disclosed NSSI (self-harm)%'
+                then 1
+                else 0
+            end as assessed_disclosed_nssi_self_harm,
+            case
+                when 
+                    v_safety_assessment_strengths 
+                    ilike '%Assessed for intent%'
+                then 1
+                else 0
+            end as assessed_for_intent,
+            case
+                when 
+                    v_safety_assessment_strengths 
+                    ilike '%Assessed for plan%'
+                then 1
+                else 0
+            end as assessed_for_plan,
+            case
+                when
+                    v_safety_assessment_strengths
+                    ilike '%Assessed for current safety or suicide in progress%'
+                then 1
+                else 0
+            end as assessed_for_safety_or_suicide_in_progress,
+            case
+                when 
+                    v_safety_assessment_strengths 
+                    ilike '%Assessed for suicide means%'
+                then 1
+                else 0
+            end as assessed_for_suicide_means,
+            case
+                when v_safety_assessment_strengths ilike '%Assessed for timeline%'
+                then 1
+                else 0
+            end as assessed_for_timeline,
+            case
+                when
+                    v_safety_assessment_strengths
+                    ilike '%Third Party Situation, assessed person in crisis%'
+                then 1
+                else 0
+            end as assessed_person_in_crisis,
+            case
+                when
+                    v_safety_assessment_strengths
+                    ilike '%Assessed any action to harm themselves today (Lifeline Question #2)%'
+                then 1
+                else 0
+            end as assessed_recent_suicidal_ideation,
+            case
+                when
+                    v_safety_assessment_strengths
+                    ilike '%Third Party Situation, assessed third party%'
+                then 1
+                else 0
+            end as assessed_third_party,
+            case
+                when
+                    v_safety_assessment_strengths
+                    ilike '%Appropriately explained/answered questions about the safety assessment%'
+                then 1
+                else 0
+            end as explained_safety_assessment,
+            case
+                when
+                    v_safety_assessment_strengths
+                    ilike '%Started the assessment at the appropriate time%'
+                then 1
+                else 0
+            end as started_assessment_time_correctly,
+            case
+                when
+                    v_safety_assessment_strengths
+                    ilike '%Supported the visitor while completing the safety assessment%'
+                then 1
+                else 0
+            end as supported_visitor_completed_assessment,
+            case
+                when
+                    v_safety_assessment_strengths
+                    ilike '%A threat assessment was needed and was completed (homicidal ideation)%'
+                then 1
+                else 0
+            end as threat_assessment_completed,
+
+            -- SAFETY_PLANNING_STRENGTHS
+            case
+                when
+                    v_safety_planning_strengths
+                    ilike '%Collaboratively created a safety plan with visitor%'
+                then 1
+                else 0
+            end as collaboratively_created_a_safety_plan,
+            case
+                when
+                    v_safety_planning_strengths
+                    ilike '%Collaboratively explored means restriction%'
+                then 1
+                else 0
+            end as collaboratively_explored_means_restriction,
+            case
+                when 
+                    v_safety_planning_strengths 
+                    ilike '%Explored warning signs%'
+                then 1
+                else 0
+            end as explored_warning_signs,
+            case
+                when 
+                    v_safety_planning_strengths 
+                    ilike '%Identified coping skills%'
+                then 1
+                else 0
+            end as identified_coping_skills,
+            case
+                when
+                    v_safety_planning_strengths
+                    ilike '%Identified family members or friends who may help to resolve a crisis%'
+                then 1
+                else 0
+            end as identified_family_members,
+            case
+                when
+                    v_safety_planning_strengths
+                    ilike '%Identify mental health professionals to contact%'
+                then 1
+                else 0
+            end as identified_mental_health_professional,
+            case
+                when
+                    v_safety_planning_strengths
+                    ilike '%Identified social contacts who may distract from the crisis%'
+                then 1
+                else 0
+            end as identified_social_contacts,
+            case
+                when
+                    v_safety_planning_strengths
+                    ilike '%Identified possible interpretation services if they are needed%'
+                then 1
+                else 0
+            end as identify_interpret_services,
+            case
+                when
+                    v_safety_planning_strengths
+                    ilike '%Incorporated least invasive intervention%'
+                then 1
+                else 0
+            end as incorporated_least_invasive_intervention,
+
+            -- SAFTEY_ASSESSMENT_IMPROVEMENT
+            case
+                when
+                    v_saftey_assessment_improvement
+                    ilike '%Did not assess disclosed NSSI (self-harm)%'
+                then 1
+                else 0
+            end as did_not_assess_disclosed_nssi_self,
+            case
+                when
+                    v_saftey_assessment_improvement
+                    ilike '%Did not assess for intent (and should have)%'
+                then 1
+                else 0
+            end as did_not_assess_for_intent_and_should_have,
+            case
+                when
+                    v_saftey_assessment_improvement
+                    ilike '%Did not assess for means (and should have)%'
+                then 1
+                else 0
+            end as did_not_assess_for_means_and_should_have,
+            case
+                when
+                    v_saftey_assessment_improvement
+                    ilike '%Did not assess for plan (and should have)%'
+                then 1
+                else 0
+            end as did_not_assess_for_plan_and_should_have,
+            case
+                when
+                    v_saftey_assessment_improvement
+                    ilike '%Did not assess for thoughts of suicide in the past few days, including today (LQ1)%'
+                then 1
+                else 0
+            end as did_not_assess_for_suicidal_thoughts,
+            case
+                when
+                    v_saftey_assessment_improvement
+                    ilike '%Did not assess for timeline (and should have)%'
+                then 1
+                else 0
+            end as did_not_assess_for_timeline_and_should_have,
+            case
+                when
+                    v_saftey_assessment_improvement
+                    ilike '%Did not assess any action to harm themselves today (LQ2)%'
+                then 1
+                else 0
+            end as did_not_assess_past_suicidal_thoughts,
+            case
+                when
+                    v_saftey_assessment_improvement
+                    ilike '%Third party situation, did not assess person in crisis%'
+                then 1
+                else 0
+            end as did_not_assess_person_in_crisis,
+            case
+                when
+                    v_saftey_assessment_improvement
+                    ilike '%Third party situation, did not assess third party%'
+                then 1
+                else 0
+            end as did_not_assess_third_party,
+            case
+                when
+                    v_saftey_assessment_improvement
+                    ilike '%Did not thoroughly complete the safety assessment%'
+                then 1
+                else 0
+            end as did_not_complete_safety_assessment,
+            case
+                when
+                    v_saftey_assessment_improvement
+                    ilike '%Did not conduct the safety assessment empathically and supportively%'
+                then 1
+                else 0
+            end as did_not_conduct_assessment_with_empathy,
+            case
+                when
+                    v_saftey_assessment_improvement
+                    ilike '%Did not start the safety assessment at the appropriate time%'
+                then 1
+                else 0
+            end as safety_assessment_start_time_issue,      
+            case
+                when
+                    v_saftey_assessment_improvement
+                    ilike '%A threat assessment was needed and was NOT completed%'
+                then 1
+                else 0
+            end as threat_assessment_not_completed,
+
+            -- WRAPPING_UP_IMPROVEMENTS
+            case
+                when
+                    v_wrapping_up_improvements
+                    ilike '%Did not end conversation in an empowering way%'
+                then 1
+                else 0
+            end as did_not_end_call_in_an_empowering_way,
+            case
+                when
+                    v_wrapping_up_improvements
+                    ilike '%Did not initiate wrap-up at appropriate point in conversation%'
+                then 1
+                else 0
+            end as did_not_initiate_wrap_up_appropriately,
+            case
+                when
+                    v_wrapping_up_improvements
+                    ilike '%Did not reassess for safety (if indicated earlier in the conversation)%'
+                then 1
+                else 0
+            end as did_not_reassess_for_suicide_risk,
+            case
+                when
+                    v_wrapping_up_improvements
+                    ilike '%Did not remind visitor of Lifeline''s 24/7 availability%'
+                then 1
+                else 0
+            end as did_not_remind_visitor_of_24_7_availability,
+            case
+                when
+                    v_wrapping_up_improvements
+                    ilike '%Did not review next steps following conversation%'
+                then 1
+                else 0
+            end as did_not_review_next_steps_following_call,
+            case
+                when
+                    v_wrapping_up_improvements
+                    ilike '%Did not review key points of contact and visitor''s needs%'
+                then 1
+                else 0
+            end as did_not_review_visitors_needs,
+            case
+                when
+                    v_wrapping_up_improvements
+                    ilike '%Inappropriately closed the conversation (e.g., abruptly, after person said they were not suicidal, etc.)%'
+                then 1
+                else 0
+            end as inappropriately_closed_the_conversation,
+
+            -- WRAPPING_UP_STRENGHTS
+            case
+                when
+                    v_wrapping_up_strengths
+                    ilike '%Warmly and appropriately ended the conversation%'
+                then 1
+                else 0
+            end as appropriately_ended_the_conversation,
+            case
+                when 
+                    v_wrapping_up_strengths 
+                    ilike '%Ended call in an empowering way%'
+                then 1
+                else 0
+            end as ended_call_in_an_empowering_way,
+            case
+                when
+                    v_wrapping_up_strengths
+                    ilike '%Initiated wrap-up at appropriate point in conversation%'
+                then 1
+                else 0
+            end as initiated_wrap_up_appropriately,
+            case
+                when
+                    v_wrapping_up_strengths
+                    ilike '%Re-assessed visitor safety (if indicated earlier in the conversation)%'
+                then 1
+                else 0
+            end as re_assessed_visitor_for_suicide_risk,
+            case
+                when
+                    v_wrapping_up_strengths
+                    ilike '%Reminded visitor of Lifeline''s 24/7 availability%'
+                then 1
+                else 0
+            end as reminded_of_24_7_chat_availability,
+            case
+                when
+                    v_wrapping_up_strengths
+                    ilike '%Reviewed key points of contact and visitor''s needs%'
+                then 1
+                else 0
+            end as reviewed_key_points_of_contact_and_needs,
+            case
+                when 
+                    v_wrapping_up_strengths 
+                    ilike '%Reviewed next steps following conversation%'
+                then 1
+                else 0
+            end as reviewed_next_steps_following_call,
+
+            -- NOT APPLICABLE TO VIDEO
+            0 as did_not_use_a_warm_and_genuine_tone,
+            0 as little_to_no_use_of_engagement_skills,
+            0 as natural_use_of_engagement_skills,
+            0 as used_a_warm_and_genuine_tone,
+            0 as assessed_risk_and_protective_factors,
+            0 as discussed_suicidal_thoughts_behavior,
+            0 as did_not_assess_ability_to_reduce_risk,
+            0 as did_not_assess_risk_or_protective_factor,
+            0 as did_not_engage_about_suicidal_thoughts,
+            0 as did_not_handle_abuse_situation,
+            0 as took_responsibility_for_fixing_problem,
+            0 as explored_alternatives,
+            0 as handled_potential_abuse_situation,
+            0 as did_not_collaborate_and_complete_intervention,
+            0 as did_not_offer_a_follow_up_after_rescue,
+            0 as inappropriately_left_chatter,
+            0 as attempted_collaborative_rescue,
+            0 as collaborated_to_complete_intervention,
+            0 as offered_chatter_a_follow_up,
+            0 as spoke_about_process_of_emergency_intervention,
+            0 as supported_chatter_during_rescue_process,
+            0 as addressed_making_the_environment_safe,
+            0 as did_not_address_making_the_environment_safe,
+            0 as did_not_create_thorough_safety_plan,
+            0 as did_not_explore_buffers,
+            0 as level_of_intervention_was_inappropriate,
+            0 as started_safety_plan_to_early,
+            0 as completed_thorough_safety_assessment,
+            0 as explored_buffers,
+            0 as explored_making_the_environment_safe,
+            0 as asked_multiple_questions_in_one_message,
+            0 as did_not_ask_about_suicide,
+            0 as did_not_ask_all_required_safety_questions,
+            0 as no_safety_assessment_completed,
+            0 as chat_was_too_long,
+            0 as chat_was_rushed_or_too_short,
+            0 as did_not_appropriately_handle_followup,
+            0 as did_not_offer_follow_up_and_should_have,
+            0 as appropriately_handled_offering_follow_up,
+            0 as appropriately_paced_the_conversation
+        from form_submissions
+        where form_submissions.record_type_id = '012VL0000009X1ZYAU'
+
+    ),     calls_question_base as (
+        select
+            id,
+            'Call' as modality,
+            case
+                when
+                    active_engagement_improvements
+                    ilike '%Counselors sounded scripted or impersonal%'
+                then 1
+                else 0
+            end as counselor_sounded_scripted,
+            case
+                when
+                    active_engagement_improvements
+                    ilike '%Did not create a caring and safe climate%'
+                then 1
+                else 0
+            end as did_not_create_a_caring_and_safe_climate,
+            case
+                when
+                    active_engagement_improvements ilike '%Did not demonstrate empathy%'
+                then 1
+                else 0
+            end as did_not_demonstrate_empathy,
+            case
+                when
+                    active_engagement_improvements
+                    ilike '%Did not exhibit trust, competence, or confidence%'
+                then 1
+                else 0
+            end as did_not_exhibit_trust_or_competence,
+            case
+                when
+                    active_engagement_improvements
+                    ilike '%Did not match the caller''s language and pace%' then 1
+                when
+                    active_engagement_improvements
+                    ilike '%Did not match the callers language and pace%' then 1
+                else 0
+            end as did_not_match_the_callers_pace,
+            case
+                when
+                    active_engagement_improvements
+                    ilike '%Did not seem engaged or attentive%'
+                then 1
+                else 0
+            end as did_not_seem_engaged_or_attentive,
+            case
+                when
+                    active_engagement_improvements
+                    ilike '%Did not use a warm and genuine tone%'
+                then 1
+                else 0
+            end as did_not_use_a_warm_and_genuine_tone,
+            case
+                when active_engagement_improvements ilike '%Little to no paraphrasing%'
+                then 1
+                else 0
+            end as little_to_no_paraphrasing,
+            case
+                when
+                    active_engagement_improvements
+                    ilike '%Used language that could come across as judgmental%'
+                then 1
+                else 0
+            end as sent_messages_could_read_as_judgmental,
+            case
+                when
+                    active_engagement_improvements
+                    ilike '%Used self-disclosure inappropriately%'
+                then 1
+                else 0
+            end as used_self_disclosure_inappropriately,
+            case
+                when
+                    active_engagement_improvements
+                    ilike '%Was repetitive in language/skills used%'
+                then 1
+                else 0
+            end as was_repetitive_in_language_skills_use,
+            case
+                when
+                    active_engagement_improvements
+                    ilike '%Little to no use of engagement skills%'
+                then 1
+                else 0
+            end as little_to_no_use_of_engagement_skills,
+            case
+                when
+                    active_engagement_strengths
+                    ilike '%Conversational style versus checklist style%'
+                then 1
+                else 0
+            end as conversational_versus_checklist_style,
+            case
+                when
+                    active_engagement_strengths
+                    ilike '%Creates a caring and safe climate%'
+                then 1
+                else 0
+            end as created_a_caring_and_safe_climate,
+            case
+                when active_engagement_strengths ilike '%Demonstrated empathy%'
+                then 1
+                else 0
+            end as demonstrated_empathy,
+            case
+                when
+                    active_engagement_strengths
+                    ilike '%Exhibits trust, competence, and confidence%'
+                then 1
+                else 0
+            end as exhibits_trust_competence_confidence,
+            case
+                when
+                    active_engagement_strengths
+                    ilike '%Matched the caller''s language and pace%'
+                then 1
+                else 0
+            end as matched_the_callers_language_and_pace,
+            case
+                when
+                    active_engagement_strengths
+                    ilike '%Provided appropriate validation%'
+                then 1
+                else 0
+            end as provided_appropriate_validation,
+            case
+                when
+                    active_engagement_strengths
+                    ilike '%Reflected back caller''s feelings%'
+                then 1
+                else 0
+            end as reflected_back_callers_feelings,
+            case
+                when
+                    active_engagement_strengths
+                    ilike '%Stayed engaged and in the present%'
+                then 1
+                else 0
+            end as stayed_engaged_and_in_the_present,
+            case
+                when active_engagement_strengths ilike '%Used a warm and genuine tone%'
+                then 1
+                else 0
+            end as used_a_warm_and_genuine_tone,
+            case
+                when
+                    active_engagement_strengths
+                    ilike '%Used self-disclosure only when appropriate%'
+                then 1
+                else 0
+            end as used_self_disclosure_when_appropriate,
+            case
+                when active_engagement_strengths ilike '%Uses paraphrasing%'
+                then 1
+                else 0
+            end as uses_paraphrasing,
+            case
+                when
+                    active_engagement_strengths
+                    ilike '%Was non-judgmental, accepting, and respectful%'
+                then 1
+                else 0
+            end as non_judgmental_accepting_respectful,
+            case
+                when
+                    active_engagement_strengths
+                    ilike '%Natural use of engagement skills%'
+                then 1
+                else 0
+            end as natural_use_of_engagement_skills,
+            case
+                when
+                    exploring_situation_improvements
+                    ilike '%Asked several questions at a time/in a row in an interrogative manner%'
+                then 1
+                else 0
+            end as asked_questions_in_an_interrogative_form,
+            case
+                when
+                    exploring_situation_improvements
+                    ilike '%Did not explore presenting concerns%'
+                then 1
+                else 0
+            end as did_not_explore_presenting_concerns,
+            case
+                when
+                    exploring_situation_improvements
+                    ilike '%Did not give appropriate space for the caller to share their experience and emotions%'
+                then 1
+                else 0
+            end as did_not_give_appropriate_space,
+            case
+                when
+                    exploring_situation_improvements
+                    ilike '%Did not identify preceding event or current triggers%'
+                then 1
+                else 0
+            end as did_not_identify_events_or_triggers,
+            case
+                when
+                    exploring_situation_improvements
+                    ilike '%Did not use open-ended and clarifying questions to deepen the relationship and understanding%'
+                then 1
+                else 0
+            end as did_not_deepen_the_relationship,
+            case
+                when
+                    exploring_situation_improvements
+                    ilike '%Jumped prematurely to problem-solving%'
+                then 1
+                else 0
+            end as jumped_prematurely_to_problem_solving,
+            case
+                when
+                    exploring_situation_strengths
+                    ilike '%Did not jump prematurely to problem-solving%'
+                then 1
+                else 0
+            end as did_not_jump_prematurely_to_problem_solving,
+            case
+                when
+                    exploring_situation_strengths ilike '%Explored presenting concerns%'
+                then 1
+                else 0
+            end as explored_presenting_concerns,
+            case
+                when
+                    exploring_situation_strengths
+                    ilike '%Gave appropriate space for the caller to share their experience and emotions%'
+                then 1
+                else 0
+            end as visitor_had_space_to_share,
+            case
+                when
+                    exploring_situation_strengths
+                    ilike '%Identified the event or current triggers that precipitated the interaction%'
+                then 1
+                else 0
+            end as identified_event_or_triggers,
+            case
+                when
+                    exploring_situation_strengths
+                    ilike '%Used open-ended and clarifying questions to deepen the relationship and understanding%'
+                then 1
+                else 0
+            end as deepened_relationship_understanding,
+            case
+                when
+                    imminent_risks_improvements
+                    ilike '%Did not ask the caller to remove means/stay safe during the conversation%'
+                then 1
+                else 0
+            end as did_not_ask_to_stay_safe,
+            case
+                when
+                    imminent_risks_improvements
+                    ilike '%Did not assess caller''s willingness and ability to take action to increase safety%'
+                then 1
+                else 0
+            end as did_not_assess_ability_to_increase_safety,
+            case
+                when
+                    imminent_risks_improvements
+                    ilike '%Did not consult supervisor regarding imminent risk situation%'
+                then 1
+                else 0
+            end as did_not_consult_supervisor,
+            case
+                when
+                    imminent_risks_improvements
+                    ilike '%Did not explore options with caller to get immediate in-person support%'
+                then 1
+                else 0
+            end as did_not_explore_immediate_support_option,
+            case
+                when
+                    imminent_risks_improvements
+                    ilike '%Did not identify least invasive intervention%'
+                then 1
+                else 0
+            end as did_not_identify_least_invasive_intervention,
+            case
+                when
+                    imminent_risks_improvements
+                    ilike '%Did not identify or assess as a potentially imminent risk situation despite clear imminent risk factors%'
+                then 1
+                else 0
+            end as imminent_risk_situation_not_assessed,
+            case
+                when
+                    imminent_risks_improvements
+                    ilike '%''Threatened'' involuntary emergency intervention (active rescue) as a way to elicit cooperation from caller%'                then 1
+                else 0
+            end as threatened_active_rescue,
+            case
+                when
+                    imminent_risks_improvements
+                    ilike '%Did not engage the visitor in discussion of suicidal thoughts and behaviors%'
+                then 1
+                else 0
+            end as did_not_engage_about_suicidal_thoughts,
+            case
+                when
+                    imminent_risks_improvements
+                    ilike '%Did not assess risk factors and protective factors%'
+                then 1
+                else 0
+            end as did_not_assess_risk_or_protective_factor,
+            case
+                when
+                    imminent_risks_improvements
+                    ilike '%Did not assess visitor''s willingness and ability to take action to reduce risk%'
+                then 1
+                else 0
+            end as did_not_assess_ability_to_reduce_risk,
+            case
+                when
+                    imminent_risk_strengths
+                    ilike '%Asked the caller to remove means/stay safe during the conversation%'
+                then 1
+                else 0
+            end as asked_visitor_to_stay_safe,
+            case
+                when
+                    imminent_risk_strengths
+                    ilike '%Assessed caller''s willingness and ability to take action to increase safety%'
+                then 1
+                else 0
+            end as assessed_willingness_to_reduce_risk,
+            case
+                when
+                    imminent_risk_strengths
+                    ilike '%Consulted supervisor regarding imminent risk situation%'
+                then 1
+                else 0
+            end as consulted_supervisor,
+            case
+                when
+                    imminent_risk_strengths
+                    ilike '%Identified and handled as imminent risk situation%'
+                then 1
+                else 0
+            end as identified_imminent_risk_situation,
+            case
+                when
+                    imminent_risk_strengths
+                    ilike '%Identified least invasive intervention%'
+                then 1
+                else 0
+            end as identified_least_invasive_intervention,
+            case
+                when
+                    imminent_risk_strengths
+                    ilike '%Engaged the visitor in discussion of suicidal thoughts and behaviors%'
+                then 1
+                else 0
+            end as discussed_suicidal_thoughts_behavior,
+            case
+                when
+                    problem_solving_improvements
+                    ilike '%Did not explore pros/cons of alternatives%'
+                then 1
+                else 0
+            end as did_not_explore_pros_cons_of_alternatives,
+            case
+                when
+                    problem_solving_improvements
+                    ilike '%Did not explore what the caller has tried to do to solve their problem%'
+                then 1
+                else 0
+            end as did_not_explore_visitors_solutions,
+            case
+                when
+                    problem_solving_improvements
+                    ilike '%Did not help caller identify and prioritize problems, needs, and wants%'
+                then 1
+                else 0
+            end as did_not_help_visitor_identify_problem,
+            case
+                when
+                    problem_solving_improvements
+                    ilike '%Did not work with the caller to create a plan that will work for them%'
+                then 1
+                else 0
+            end as did_not_work_with_visitor_to_create_a_plan,
+            case
+                when problem_solving_improvements ilike '%Gave advice to caller%'
+                then 1
+                else 0
+            end as gave_advice_to_caller,
+            case
+                when
+                    problem_solving_improvements
+                    ilike '%Did not appropriately handle offering referrals%'
+                then 1
+                else 0
+            end as did_not_appropriately_handle_referral,
+            case
+                when
+                    problem_solving_improvements
+                    ilike '%Did not appropriately handle potential abuse situation (elder, minor, dependent adult)%'
+                then 1
+                else 0
+            end as did_not_handle_abuse_situation,
+            case
+                when
+                    problem_solving_improvements
+                    ilike '%Took responsibility for fixing the problem%'
+                then 1
+                else 0
+            end as took_responsibility_for_fixing_problem,
+            case
+                when
+                    problem_solving_strengths
+                    ilike '%Appropriately handled offering referrals and resources%'
+                then 1
+                else 0
+            end as handled_offering_referrals_and_resources,
+            case
+                when
+                    problem_solving_strengths
+                    ilike '%Avoided taking responsibility to fix the problem and give advice%'
+                then 1
+                else 0
+            end as avoided_taking_responsibility_for_fix,
+            case
+                when
+                    problem_solving_strengths
+                    ilike '%Explored what the caller has tried to do to solve the problem%'
+                then 1
+                else 0
+            end as explored_visitors_previous_solutions,
+            case
+                when
+                    problem_solving_strengths
+                    ilike '%Helped caller identify and prioritize problems, needs, and wants%'
+                then 1
+                else 0
+            end as helped_visitor_identify_problems,
+            case
+                when
+                    problem_solving_strengths
+                    ilike '%Worked with the caller to create a plan that will work for them%'
+                then 1
+                else 0
+            end as worked_with_visitor_to_create_plan,
+            case
+                when problem_solving_strengths ilike '%Explored alternatives%'
+                then 1
+                else 0
+            end as explored_alternatives,
+            case
+                when
+                    problem_solving_strengths
+                    ilike '%Appropriately handled potential abuse situation (elder, minor, dependent adult)%'
+                then 1
+                else 0
+            end as handled_potential_abuse_situation,
+            case
+                when
+                    rescue_improvements
+                    ilike '%Did not attempt to initiate a collaborative emergency intervention (exclude situations where doing so would increase risk)%'
+                then 1
+                else 0
+            end as did_not_initiate_emergency_intervention,
+            case
+                when
+                    rescue_improvements
+                    ilike '%Did not offer a follow-up (for after the emergency intervention)%'
+                then 1
+                else 0
+            end as did_not_offer_a_follow_up,
+            case
+                when
+                    rescue_improvements
+                    ilike '%Failed to engage caller or was not supportive during emergency intervention process%'
+                then 1
+                else 0
+            end as failed_to_support_during_intervention,
+            case
+                when
+                    rescue_improvements
+                    ilike '%Did not offer a follow-up (for after the rescue)%'
+                then 1
+                else 0
+            end as did_not_offer_a_follow_up_after_rescue,
+            case
+                when
+                    rescue_improvements
+                    ilike '%Inappropriately ''left'' chatter or was not supportive during rescue process%'
+                then 1
+                else 0
+            end as inappropriately_left_chatter,
+            case
+                when
+                    rescue_improvements
+                    ilike '%Did not work collaboratively with the visitor to complete the intervention%'
+                then 1
+                else 0
+            end as did_not_collaborate_and_complete_intervention,
+            case
+                when
+                    rescue_strengths
+                    ilike '%Attempted to initiate a collaborative emergency intervention%'
+                then 1
+                else 0
+            end as attempted_collaborative_emergency_intervention,
+            case
+                when
+                    rescue_strengths
+                    ilike '%Clearly communicated with caller about process of emergency intervention%'
+                then 1
+                else 0
+            end as spoke_about_process_of_emergency_intervention,
+            case
+                when
+                    rescue_strengths
+                    ilike '%Engaged caller during emergency intervention process%'
+                then 1
+                else 0
+            end as engaged_during_emergency_intervention,
+            case
+                when
+                    rescue_strengths
+                    ilike '%Offered caller a follow-up (for after the rescue)%'
+                then 1
+                else 0
+            end as offered_caller_a_follow_up,
+            case
+                when
+                    rescue_strengths
+                    ilike '%Offered chatter a follow-up (for after the rescue)%'
+                then 1
+                else 0
+            end as offered_chatter_a_follow_up,
+            case
+                when rescue_strengths ilike '%Supported chatter during rescue process%'
+                then 1
+                else 0
+            end as supported_chatter_during_rescue_process,
+            case
+                when
+                    rescue_strengths
+                    ilike '%Worked collaboratively with the visitor to complete the intervention%'
+                then 1
+                else 0
+            end as collaborated_to_complete_intervention,
+            case
+                when
+                    saftey_assessment_improvement
+                    ilike '%A threat assessment was needed and was NOT completed%'
+                then 1
+                else 0
+            end as threat_assessment_not_completed,
+            case
+                when
+                    saftey_assessment_improvement
+                    ilike '%Did not assess any action to harm themselves today (LQ2)%'
+                then 1
+                else 0
+            end as did_not_assess_past_suicidal_thoughts,
+            case
+                when
+                    saftey_assessment_improvement
+                    ilike '%Did not assess disclosed NSSI (self-harm)%'
+                then 1
+                else 0
+            end as did_not_assess_disclosed_nssi_self,
+            case
+                when
+                    saftey_assessment_improvement
+                    ilike '%Did not assess for intent (and should have)%'
+                then 1
+                else 0
+            end as did_not_assess_for_intent_and_should_have,
+            case
+                when
+                    saftey_assessment_improvement
+                    ilike '%Did not assess for means (and should have)%'
+                then 1
+                else 0
+            end as did_not_assess_for_means_and_should_have,
+            case
+                when
+                    saftey_assessment_improvement
+                    ilike '%Did not assess for plan (and should have)%'
+                then 1
+                else 0
+            end as did_not_assess_for_plan_and_should_have,
+            case
+                when
+                    saftey_assessment_improvement
+                    ilike '%Did not assess for thoughts of suicide in the past few days, including today (LQ1)%'
+                then 1
+                else 0
+            end as did_not_assess_for_suicidal_thoughts,
+            case
+                when
+                    saftey_assessment_improvement
+                    ilike '%Did not assess for timeline (and should have)%'
+                then 1
+                else 0
+            end as did_not_assess_for_timeline_and_should_have,
+            case
+                when
+                    saftey_assessment_improvement
+                    ilike '%Did not complete a safety assessment at all%'
+                then 1
+                else 0
+            end as no_safety_assessment_completed,
+            case
+                when
+                    saftey_assessment_improvement
+                    ilike '%Did not conduct the safety assessment empathically and supportively%'
+                then 1
+                else 0
+            end as did_not_conduct_assessment_with_empathy,
+            case
+                when
+                    saftey_assessment_improvement
+                    ilike '%Did not start the safety assessment at the appropriate time%'
+                then 1
+                else 0
+            end as safety_assessment_start_time_issue,
+            case
+                when
+                    saftey_assessment_improvement
+                    ilike '%Did not thoroughly complete the safety assessment%'
+                then 1
+                else 0
+            end as did_not_complete_safety_assessment,
+            case
+                when
+                    saftey_assessment_improvement
+                    ilike '%Third party situation, did not assess person in crisis%'
+                then 1
+                else 0
+            end as did_not_assess_person_in_crisis,
+            case
+                when
+                    saftey_assessment_improvement
+                    ilike '%Third party situation, did not assess third party%'
+                then 1
+                else 0
+            end as did_not_assess_third_party,
+            case
+                when
+                    saftey_assessment_improvement
+                    ilike '%Asked multiple safety questions in one message%'
+                then 1
+                else 0
+            end as asked_multiple_questions_in_one_message,
+            case
+                when
+                    saftey_assessment_improvement
+                    ilike '%Did not clearly and directly ask about suicide%'
+                then 1
+                else 0
+            end as did_not_ask_about_suicide,
+            case
+                when
+                    safety_assessment_strengths
+                    ilike '%A threat assessment was needed and was completed (homicidal ideation)%'
+                then 1
+                else 0
+            end as threat_assessment_completed,
+            case
+                when
+                    safety_assessment_strengths
+                    ilike '%Appropriately explained/answered questions about the safety assessment%'
+                then 1
+                else 0
+            end as explained_safety_assessment,
+            case
+                when
+                    safety_assessment_strengths
+                    ilike '%Assessed any action to harm themselves today (Lifeline Question #2)%'
+                then 1
+                else 0
+            end as assessed_recent_suicidal_ideation,
+            case
+                when
+                    safety_assessment_strengths
+                    ilike '%Assessed disclosed NSSI (self-harm)%'
+                then 1
+                else 0
+            end as assessed_disclosed_nssi_self_harm,
+            case
+                when
+                    safety_assessment_strengths
+                    ilike '%Assessed for current safety or suicide in progress%'
+                then 1
+                else 0
+            end as assessed_for_safety_or_suicide_in_progress,
+            case
+                when safety_assessment_strengths ilike '%Assessed for intent%'
+                then 1
+                else 0
+            end as assessed_for_intent,
+            case
+                when safety_assessment_strengths ilike '%Assessed for plan%'
+                then 1
+                else 0
+            end as assessed_for_plan,
+            case
+                when safety_assessment_strengths ilike '%Assessed for suicide means%'
+                then 1
+                else 0
+            end as assessed_for_suicide_means,
+            case
+                when safety_assessment_strengths ilike '%Assessed for timeline%'
+                then 1
+                else 0
+            end as assessed_for_timeline,
+            case
+                when
+                    safety_assessment_strengths
+                    ilike '%Assessed thoughts of suicide in the past few days, including today (Lifeline Question #1)%'
+                then 1
+                else 0
+            end as assessed_current_suicidal_ideation,
+            case
+                when
+                    safety_assessment_strengths
+                    ilike '%Started the assessment at the appropriate time%'
+                then 1
+                else 0
+            end as started_assessment_time_correctly,
+            case
+                when
+                    safety_assessment_strengths
+                    ilike '%Supported the caller while completing the safety assessment%'
+                then 1
+                else 0
+            end as supported_visitor_completed_assessment,
+            case
+                when
+                    safety_assessment_strengths
+                    ilike '%Third Party Situation, assessed person in crisis%'
+                then 1
+                else 0
+            end as assessed_person_in_crisis,
+            case
+                when
+                    safety_assessment_strengths
+                    ilike '%Third Party Situation, assessed third party%'
+                then 1
+                else 0
+            end as assessed_third_party,
+            case
+                when
+                    safety_assessment_strengths
+                    ilike '%Completed thorough safety assessment%'
+                then 1
+                else 0
+            end as completed_thorough_safety_assessment,
+            case
+                when
+                    safety_planning_improvements
+                    ilike '%Addressed means restriction in a directive, non-collaborative way%'
+                then 1
+                else 0
+            end as addressed_means_restriction,
+            case
+                when
+                    safety_planning_improvements
+                    ilike '%Did not address means restriction%'
+                then 1
+                else 0
+            end as did_not_address_means_restriction,
+            case
+                when
+                    safety_planning_improvements
+                    ilike '%Did not collaboratively create a safety plan with caller%'
+                then 1
+                else 0
+            end as did_not_collaboratively_create_a_plan,
+            case
+                when
+                    safety_planning_improvements ilike '%Did not explore warning signs%'
+                then 1
+                else 0
+            end as did_not_explore_warning_signs,
+            case
+                when
+                    safety_planning_improvements
+                    ilike '%Did not identify coping skills%'
+                then 1
+                else 0
+            end as did_not_identify_coping_skills,
+            case
+                when
+                    safety_planning_improvements
+                    ilike '%Did not identify family members or friends who may help to resolve a crisis%'
+                then 1
+                else 0
+            end as did_not_identify_family_members,
+            case
+                when
+                    safety_planning_improvements
+                    ilike '%Did not identify mental health professionals to contact%'
+                then 1
+                else 0
+            end as did_not_identify_health_professionals,
+            case
+                when
+                    safety_planning_improvements
+                    ilike '%Did not identify social contacts who may distract from the crisis%'
+                then 1
+                else 0
+            end as did_not_identify_social_contacts,
+            case
+                when safety_planning_improvements ilike '%No safety plan completed%'
+                then 1
+                else 0
+            end as no_safety_plan_completed,
+            case
+                when safety_planning_improvements ilike '%Did not explore buffers%'
+                then 1
+                else 0
+            end as did_not_explore_buffers,
+            case
+                when
+                    safety_planning_improvements
+                    ilike '%Level of intervention was inappropriate for visitor''s risk level%'
+                then 1
+                else 0
+            end as level_of_intervention_was_inappropriate,
+            case
+                when
+                    safety_planning_improvements
+                    ilike '%Started safety plan before the visitor was ready%'
+                then 1
+                else 0
+            end as started_safety_plan_to_early,
+            case
+                when
+                    safety_planning_improvements
+                    ilike '%Addressed making the environment safe in a directive, non-collaborative way%'
+                then 1
+                else 0
+            end as addressed_making_the_environment_safe,
+            case
+                when
+                    safety_planning_improvements
+                    ilike '%Did not address making the environment safe%'
+                then 1
+                else 0
+            end as did_not_address_making_the_environment_safe,
+            case
+                when
+                    safety_planning_improvements
+                    ilike '%Did not create a thorough safety plan because safety assessment was incomplete%'
+                then 1
+                else 0
+            end as did_not_create_thorough_safety_plan,
+            case
+                when
+                    safety_planning_strengths
+                    ilike '%Collaboratively created a safety plan with caller%'
+                then 1
+                else 0
+            end as collaboratively_created_a_safety_plan,
+            case
+                when
+                    safety_planning_strengths
+                    ilike '%Collaboratively explored means restriction%'
+                then 1
+                else 0
+            end as collaboratively_explored_means_restriction,
+            case
+                when safety_planning_strengths ilike '%Explored warning signs%'
+                then 1
+                else 0
+            end as explored_warning_signs,
+            case
+                when safety_planning_strengths ilike '%Identified coping skills%'
+                then 1
+                else 0
+            end as identified_coping_skills,
+            case
+                when
+                    safety_planning_strengths
+                    ilike '%Identified family members or friends who may help to resolve a crisis%'
+                then 1
+                else 0
+            end as identified_family_members,
+            case
+                when
+                    safety_planning_strengths
+                    ilike '%Identified social contacts who may distract from the crisis%'
+                then 1
+                else 0
+            end as identified_social_contacts,
+            case
+                when
+                    safety_planning_strengths
+                    ilike '%Identify mental health professionals to contact%'
+                then 1
+                else 0
+            end as identified_mental_health_professional,
+            case
+                when
+                    safety_planning_strengths
+                    ilike '%Incorporated least invasive intervention%'
+                then 1
+                else 0
+            end as incorporated_least_invasive_intervention,
+            case
+                when safety_planning_strengths ilike '%Explored buffers%' then 1 else 0
+            end as explored_buffers,
+            case
+                when
+                    safety_planning_strengths
+                    ilike '%Collaboratively explored making the environment safe%'
+                then 1
+                else 0
+            end as explored_making_the_environment_safe,
+            case
+                when
+                    wrapping_up_improvements
+                    ilike '%Did not end call in an empowering way%'
+                then 1
+                else 0
+            end as did_not_end_call_in_an_empowering_way,
+            case
+                when
+                    wrapping_up_improvements
+                    ilike '%Did not initiate wrap-up at appropriate point in conversation%'
+                then 1
+                else 0
+            end as did_not_initiate_wrap_up_appropriately,
+            case
+                when
+                    wrapping_up_improvements
+                    ilike '%Did not reassess for safety (if indicated earlier in the conversation)%'
+                then 1
+                else 0
+            end as did_not_reassess_for_suicide_risk,
+            case
+                when
+                    wrapping_up_improvements
+                    ilike '%Did not remind caller of Lifeline''s 24/7 availability%'
+                then 1
+                else 0
+            end as did_not_remind_visitor_of_24_7_availability,
+            case
+                when
+                    wrapping_up_improvements
+                    ilike '%Did not review key points of contact and caller''s needs%'
+                then 1
+                else 0
+            end as did_not_review_visitors_needs,
+            case
+                when
+                    wrapping_up_improvements
+                    ilike '%Did not review next steps following call%'
+                then 1
+                else 0
+            end as did_not_review_next_steps_following_call,
+            case
+                when
+                    wrapping_up_improvements
+                    ilike '%Inappropriately closed the conversation (e.g., abruptly, after person said they were not suicidal, etc.)%'
+                then 1
+                else 0
+            end as inappropriately_closed_the_conversation,
+            case
+                when
+                    wrapping_up_improvements
+                    ilike '%Did not offer follow-up (and should have)%'
+                then 1
+                else 0
+            end as did_not_offer_follow_up_and_should_have,
+            case
+                when wrapping_up_improvements ilike '%Chat was rushed or too short%'
+                then 1
+                else 0
+            end as chat_was_rushed_or_too_short,
+            case
+                when
+                    wrapping_up_improvements
+                    ilike '%Chat was too long, better pacing could have expedited the conversation%'
+                then 1
+                else 0
+            end as chat_was_too_long,
+            case
+                when
+                    wrapping_up_improvements
+                    ilike '%Did not appropriately handle offering follow-up%'
+                then 1
+                else 0
+            end as did_not_appropriately_handle_followup,
+            case
+                when wrapping_up_strengths ilike '%Ended call in an empowering way%'
+                then 1
+                else 0
+            end as ended_call_in_an_empowering_way,
+            case
+                when
+                    wrapping_up_strengths
+                    ilike '%Initiated wrap-up at appropriate point in conversation%'
+                then 1
+                else 0
+            end as initiated_wrap_up_appropriately,
+            case
+                when
+                    wrapping_up_strengths
+                    ilike '%Re-assessed caller safety (if indicated earlier in the conversation)%'
+                then 1
+                else 0
+            end as re_assessed_visitor_for_suicide_risk,
+            case
+                when
+                    wrapping_up_strengths
+                    ilike '%Reminded caller of Lifeline''s 24/7 availability%'
+                then 1
+                else 0
+            end as reminded_of_24_7_chat_availability,
+            case
+                when
+                    wrapping_up_strengths
+                    ilike '%Reviewed key points of contact and caller''s needs%'
+                then 1
+                else 0
+            end as reviewed_key_points_of_contact_and_needs,
+            case
+                when wrapping_up_strengths ilike '%Reviewed next steps following call%'
+                then 1
+                else 0
+            end as reviewed_next_steps_following_call,
+            case
+                when
+                    wrapping_up_strengths
+                    ilike '%Warmly and appropriately ended the conversation%'
+                then 1
+                else 0
+            end as appropriately_ended_the_conversation,
+            case
+                when
+                    wrapping_up_strengths
+                    ilike '%Appropriately handled offering follow-up%'
+                then 1
+                else 0
+            end as appropriately_handled_offering_follow_up,
+            case
+                when
+                    wrapping_up_strengths
+                    ilike '%Appropriately paced the conversation%'
+                then 1
+                else 0
+            end as appropriately_paced_the_conversation,
+            case
+            when
+                imminent_risk_strengths
+                ilike '%Explored options with caller to get immediate in-person support%'
+                then 1
+                else 0
+            end as explored_options_for_inperson_support,
+            case
+            when
+                problem_solving_strengths
+                ilike '%Explored pros/cons of alternatives%'
+                then 1
+                else 0
+            end as explored_pros_cons_of_alts,
+            case
+            when
+                rescue_improvements
+                ilike '%Did not communicate to caller about process of emergency intervention%'
+                then 1
+                else 0
+            end as did_not_communicate_emergency_intervention_process,
+            0 as did_not_ask_all_required_safety_questions,
+            0 as assessed_risk_and_protective_factors,
+            0 as attempted_collaborative_rescue,
+            0 as no_notification_of_hearing_status,
+            0 as notification_of_hearing_status,
+            0 as did_not_identify_interpret_services,
+            0 as identify_interpret_services
+        from form_submissions
+        where record_type_id = '012Dn0000008HsCIAU'
+    ),
+    chat_question_base as (
+
+        select
+            id,
+            'Chat' as modality,
+            case
+                when
+                    ch_active_engagement_improvements
+                    ilike '%Counselor''s messages felt scripted, impersonal, or cliched%'
+                then 1
+                else 0
+            end as counselor_sounded_scripted,
+            case
+                when
+                    ch_active_engagement_improvements
+                    ilike '%Did not demonstrate empathy%'
+                then 1
+                else 0
+            end as did_not_demonstrate_empathy,
+            case
+                when
+                    ch_active_engagement_improvements
+                    ilike '%Little to no use of engagement skills%'
+                then 1
+                else 0
+            end as little_to_no_use_of_engagement_skills,
+            case
+                when
+                    ch_active_engagement_improvements
+                    ilike '%Sent messages that could read as judgmental%'
+                then 1
+                else 0
+            end as sent_messages_could_read_as_judgmental,
+            case
+                when
+                    ch_active_engagement_improvements
+                    ilike '%Used self-disclosure inappropriately%'
+                then 1
+                else 0
+            end as used_self_disclosure_inappropriately,
+            case
+                when
+                    ch_active_engagement_improvements
+                    ilike '%Was repetitive in language/skills used%'
+                then 1
+                else 0
+            end as was_repetitive_in_language_skills_use,
+            case
+                when
+                    ch_active_engagement_strengths
+                    ilike '%Natural use of engagement skills%'
+                then 1
+                else 0
+            end as natural_use_of_engagement_skills,
+            case
+                when
+                    ch_active_engagement_strengths
+                    ilike '%Stayed engaged and in the present%'
+                then 1
+                else 0
+            end as stayed_engaged_and_in_the_present,
+            case
+                when
+                    ch_active_engagement_strengths
+                    ilike '%Used a warm and genuine tone%'
+                then 1
+                else 0
+            end as used_a_warm_and_genuine_tone,
+            case
+                when
+                    ch_active_engagement_strengths
+                    ilike '%Used self-disclosure only when appropriate%'
+                then 1
+                else 0
+            end as used_self_disclosure_when_appropriate,
+            case
+                when
+                    ch_active_engagement_strengths
+                    ilike '%Was non-judgmental, accepting, and respectful%'
+                then 1
+                else 0
+            end as non_judgmental_accepting_respectful,
+            case
+                when
+                    ch_exploring_situation_improvements
+                    ilike '%Asked several questions at a time/in a row in an interrogative manner%'
+                then 1
+                else 0
+            end as asked_questions_in_an_interrogative_form,
+            case
+                when
+                    ch_exploring_situation_improvements
+                    ilike '%Did not explore presenting concerns%'
+                then 1
+                else 0
+            end as did_not_explore_presenting_concerns,
+            case
+                when
+                    ch_exploring_situation_improvements
+                    ilike '%Did not give appropriate space for the caller to share their experience and emotions%'
+                then 1
+                else 0
+            end as did_not_give_appropriate_space,
+            case
+                when
+                    ch_exploring_situation_improvements
+                    ilike '%Did not identify preceding event or current triggers%'
+                then 1
+                else 0
+            end as did_not_identify_events_or_triggers,
+            case
+                when
+                    ch_exploring_situation_improvements
+                    ilike '%Did not use open-ended and clarifying questions to deepen the relationship and understanding%'
+                then 1
+                else 0
+            end as did_not_deepen_the_relationship,
+            case
+                when
+                    ch_exploring_situation_improvements
+                    ilike '%Jumped prematurely to problem-solving%'
+                then 1
+                else 0
+            end as jumped_prematurely_to_problem_solving,
+            case
+                when
+                    ch_exploring_situation_strengths
+                    ilike '%Did not jump prematurely to problem-solving%'
+                then 1
+                else 0
+            end as did_not_jump_prematurely_to_problem_solving,
+            case
+                when
+                    ch_exploring_situation_strengths
+                    ilike '%Gave appropriate space for the caller to share their experience and emotions%'
+                then 1
+                else 0
+            end as visitor_had_space_to_share,
+            case
+                when
+                    ch_exploring_situation_strengths
+                    ilike '%Identified the event or current triggers that precipitated the interaction%'
+                then 1
+                else 0
+            end as identified_event_or_triggers,
+            case
+                when
+                    ch_exploring_situation_strengths
+                    ilike '%Used open-ended and clarifying questions to deepen the relationship and understanding%'
+                then 1
+                else 0
+            end as deepened_relationship_understanding,
+            case
+                when
+                    ch_imminent_risk_strengths
+                    ilike '%Asked the visitor to remove means/stay safe during the conversation%'
+                then 1
+                else 0
+            end as asked_visitor_to_stay_safe,
+            case
+                when
+                    ch_imminent_risk_strengths
+                    ilike '%Assessed Risk and Protective Factors%'
+                then 1
+                else 0
+            end as assessed_risk_and_protective_factors,
+            case
+                when
+                    ch_imminent_risk_strengths
+                    ilike '%Assessed visitor''s willingness and ability to take action to reduce risk%'
+                then 1
+                else 0
+            end as assessed_willingness_to_reduce_risk,
+            case
+                when
+                    ch_imminent_risk_strengths
+                    ilike '%Engaged the visitor in discussion of suicidal thoughts and behaviors%'
+                then 1
+                else 0
+            end as discussed_suicidal_thoughts_behavior,
+            case
+                when
+                    ch_imminent_risk_strengths
+                    ilike '%Identified and handled as imminent risk situation%'
+                then 1
+                else 0
+            end as identified_imminent_risk_situation,
+            case
+                when
+                    ch_imminent_risk_strengths
+                    ilike '%Identified least invasive intervention%'
+                then 1
+                else 0
+            end as identified_least_invasive_intervention,
+            case
+                when
+                    ch_imminent_risks_improvements
+                    ilike '%Did not ask the visitor to remove means/stay safe during the conversation%'
+                then 1
+                else 0
+            end as did_not_ask_to_stay_safe,
+            case
+                when
+                    ch_imminent_risks_improvements
+                    ilike '%Did not assess risk factors and protective factors%'
+                then 1
+                else 0
+            end as did_not_assess_risk_or_protective_factor,
+            case
+                when
+                    ch_imminent_risks_improvements
+                    ilike '%Did not assess visitor''s willingness and ability to take action to reduce risk%'
+                then 1
+                else 0
+            end as did_not_assess_ability_to_reduce_risk,
+            case
+                when
+                    ch_imminent_risks_improvements
+                    ilike '%Did not engage the visitor in discussion of suicidal thoughts and behaviors%'
+                then 1
+                else 0
+            end as did_not_engage_about_suicidal_thoughts,
+            case
+                when
+                    ch_imminent_risks_improvements
+                    ilike '%Did not identify least invasive intervention%'
+                then 1
+                else 0
+            end as did_not_identify_least_invasive_intervention,
+            case
+                when
+                    ch_imminent_risks_improvements
+                    ilike '%Did not identify or assess as a potentially imminent risk situation despite clear imminent risk factors%'
+                then 1
+                else 0
+            end as imminent_risk_situation_not_assessed,
+            case
+                when
+                    ch_imminent_risks_improvements
+                    ilike '%''Threatened'' active rescue as a way to elicit cooperation from chatter%'
+                then 1
+                else 0
+            end as threatened_active_rescue,
+            case
+                when
+                    ch_problem_solving_improvements
+                    ilike '%Did not appropriately handle potential abuse situation (elder, minor, dependent adult)%'
+                then 1
+                else 0
+            end as did_not_handle_abuse_situation,
+            case
+                when
+                    ch_problem_solving_improvements
+                    ilike '%Did not explore what the visitor has tried to do to solve their problem%'
+                then 1
+                else 0
+            end as did_not_explore_visitors_solutions,
+            case
+                when
+                    ch_problem_solving_improvements
+                    ilike '%Did not help visitor identify and prioritize problems, needs, and wants%'
+                then 1
+                else 0
+            end as did_not_help_visitor_identify_problem,
+            case
+                when
+                    ch_problem_solving_improvements
+                    ilike '%Did not work with the visitor to create a plan that will work for them%'
+                then 1
+                else 0
+            end as did_not_work_with_visitor_to_create_a_plan,
+            case
+                when
+                    ch_problem_solving_improvements
+                    ilike '%Took responsibility for fixing the problem%'
+                then 1
+                else 0
+            end as took_responsibility_for_fixing_problem,
+            case
+                when
+                    ch_problem_solving_strengths
+                    ilike '%Appropriately handled offering referrals and resources%'
+                then 1
+                else 0
+            end as handled_offering_referrals_and_resources,
+            case
+                when
+                    ch_problem_solving_strengths
+                    ilike '%Appropriately handled potential abuse situation (elder, minor, dependent adult)%'
+                then 1
+                else 0
+            end as handled_potential_abuse_situation,
+            case
+                when
+                    ch_problem_solving_strengths
+                    ilike '%Avoided taking responsibility to fix the problem%'
+                then 1
+                else 0
+            end as avoided_taking_responsibility_for_fix,
+            case
+                when ch_problem_solving_strengths ilike '%Explored alternatives%'
+                then 1
+                else 0
+            end as explored_alternatives,
+            case
+                when
+                    ch_problem_solving_strengths
+                    ilike '%Explored what the visitor has tried to do to solve the problem%'
+                then 1
+                else 0
+            end as explored_visitors_previous_solutions,
+            case
+                when
+                    ch_problem_solving_strengths
+                    ilike '%Helped visitor identify and prioritize problems, needs, and wants%'
+                then 1
+                else 0
+            end as helped_visitor_identify_problems,
+            case
+                when
+                    ch_problem_solving_strengths
+                    ilike '%Worked with the visitor to create a plan that will work for them%'
+                then 1
+                else 0
+            end as worked_with_visitor_to_create_plan,
+            case
+                when
+                    ch_rescue_improvements
+                    ilike '%Did not offer a follow-up (for after the rescue)%'
+                then 1
+                else 0
+            end as did_not_offer_a_follow_up_after_rescue,
+            case
+                when
+                    ch_rescue_improvements
+                    ilike '%Did not work collaboratively with the visitor to complete the intervention%'
+                then 1
+                else 0
+            end as did_not_collaborate_and_complete_intervention,
+            case
+                when
+                    ch_rescue_improvements
+                    ilike '%Inappropriately ''left'' chatter or was not supportive during rescue process%'
+                then 1
+                else 0
+            end as inappropriately_left_chatter,
+            case
+                when
+                    ch_rescue_strengths
+                    ilike '%Offered chatter a follow-up (for after the rescue)%'
+                then 1
+                else 0
+            end as offered_chatter_a_follow_up,
+            case
+                when
+                    ch_rescue_strengths
+                    ilike '%Supported chatter during rescue process%'
+                then 1
+                else 0
+            end as supported_chatter_during_rescue_process,
+            case
+                when
+                    ch_rescue_strengths
+                    ilike '%Worked collaboratively with the visitor to complete the intervention%'
+                then 1
+                else 0
+            end as collaborated_to_complete_intervention,
+            case
+                when
+                    ch_safety_assessment_strengths
+                    ilike '%A threat assessment was needed and was completed (homicidal ideation)%'
+                then 1
+                else 0
+            end as threat_assessment_completed,
+            case
+                when
+                    ch_safety_assessment_strengths
+                    ilike '%Assessed any action to harm themselves today (Lifeline Question #2)%'
+                then 1
+                else 0
+            end as assessed_recent_suicidal_ideation,
+            case
+                when
+                    ch_safety_assessment_strengths
+                    ilike '%Assessed disclosed NSSI (self-harm)%'
+                then 1
+                else 0
+            end as assessed_disclosed_nssi_self_harm,
+            case
+                when
+                    ch_safety_assessment_strengths
+                    ilike '%Assessed for current safety or suicide in progress%'
+                then 1
+                else 0
+            end as assessed_for_safety_or_suicide_in_progress,
+            case
+                when ch_safety_assessment_strengths ilike '%Assessed for intent%'
+                then 1
+                else 0
+            end as assessed_for_intent,
+            case
+                when ch_safety_assessment_strengths ilike '%Assessed for plan%'
+                then 1
+                else 0
+            end as assessed_for_plan,
+            case
+                when ch_safety_assessment_strengths ilike '%Assessed for suicide means%'
+                then 1
+                else 0
+            end as assessed_for_suicide_means,
+            case
+                when ch_safety_assessment_strengths ilike '%Assessed for timeline%'
+                then 1
+                else 0
+            end as assessed_for_timeline,
+            case
+                when
+                    ch_safety_assessment_strengths
+                    ilike '%Assessed thoughts of suicide in the past few days, including today (Lifeline Question #1)%'
+                then 1
+                else 0
+            end as assessed_current_suicidal_ideation,
+            case
+                when
+                    ch_safety_assessment_strengths
+                    ilike '%Completed thorough safety assessment%'
+                then 1
+                else 0
+            end as completed_thorough_safety_assessment,
+            case
+                when
+                    ch_safety_assessment_strengths
+                    ilike '%Started the assessment at the appropriate time%'
+                then 1
+                else 0
+            end as started_assessment_time_correctly,
+            case
+                when
+                    ch_safety_assessment_strengths
+                    ilike '%Supported the visitor while completing the safety assessment%'
+                then 1
+                else 0
+            end as supported_visitor_completed_assessment,
+            case
+                when
+                    ch_safety_assessment_strengths
+                    ilike '%Third Party Situation, assessed person in crisis%'
+                then 1
+                else 0
+            end as assessed_person_in_crisis,
+            case
+                when
+                    ch_safety_assessment_strengths
+                    ilike '%Third Party Situation, assessed third party%'
+                then 1
+                else 0
+            end as assessed_third_party,
+            case
+                when
+                    ch_safety_planning_improvements
+                    ilike '%Addressed making the environment safe in a directive, non-collaborative way%'
+                then 1
+                else 0
+            end as addressed_making_the_environment_safe,
+            case
+                when
+                    ch_safety_planning_improvements
+                    ilike '%Did not address making the environment safe%'
+                then 1
+                else 0
+            end as did_not_address_making_the_environment_safe,
+            case
+                when
+                    ch_safety_planning_improvements
+                    ilike '%Did not collaboratively create a safety plan with visitor%'
+                then 1
+                else 0
+            end as did_not_collaboratively_create_a_plan,
+            case
+                when
+                    ch_safety_planning_improvements
+                    ilike '%Did not create a thorough safety plan because safety assessment was incomplete%'
+                then 1
+                else 0
+            end as did_not_create_thorough_safety_plan,
+            case
+                when ch_safety_planning_improvements ilike '%Did not explore buffers%'
+                then 1
+                else 0
+            end as did_not_explore_buffers,
+            case
+                when
+                    ch_safety_planning_improvements
+                    ilike '%Did not identify coping skills%'
+                then 1
+                else 0
+            end as did_not_identify_coping_skills,
+            case
+                when
+                    ch_safety_planning_improvements
+                    ilike '%Level of intervention was inappropriate for visitor''s risk level%'
+                then 1
+                else 0
+            end as level_of_intervention_was_inappropriate,
+            case
+                when ch_safety_planning_improvements ilike '%No safety plan completed%'
+                then 1
+                else 0
+            end as no_safety_plan_completed,
+            case
+                when
+                    ch_safety_planning_improvements
+                    ilike '%Started safety plan before the visitor was ready%'
+                then 1
+                else 0
+            end as started_safety_plan_to_early,
+            case
+                when
+                    ch_safety_planning_strengths
+                    ilike '%Collaboratively created a safety plan with visitor%'
+                then 1
+                else 0
+            end as collaboratively_created_a_safety_plan,
+            case
+                when
+                    ch_safety_planning_strengths
+                    ilike '%Collaboratively explored making the environment safe%'
+                then 1
+                else 0
+            end as explored_making_the_environment_safe,
+            case
+                when
+                    ch_safety_planning_strengths
+                    ilike '%Collaboratively explored means restriction%'
+                then 1
+                else 0
+            end as collaboratively_explored_means_restriction,
+            case
+                when ch_safety_planning_strengths ilike '%Explored buffers%'
+                then 1
+                else 0
+            end as explored_buffers,
+            case
+                when ch_safety_planning_strengths ilike '%Explored warning signs%'
+                then 1
+                else 0
+            end as explored_warning_signs,
+            case
+                when ch_safety_planning_strengths ilike '%Identified coping skills%'
+                then 1
+                else 0
+            end as identified_coping_skills,
+            case
+                when
+                    ch_safety_planning_strengths
+                    ilike '%Identified family members or friends who may help to resolve a crisis%'
+                then 1
+                else 0
+            end as identified_family_members,
+            case
+                when
+                    ch_safety_planning_strengths
+                    ilike '%Identified social contacts who may distract from the crisis%'
+                then 1
+                else 0
+            end as identified_social_contacts,
+            case
+                when
+                    ch_safety_planning_strengths
+                    ilike '%Identify mental health professionals to contact%'
+                then 1
+                else 0
+            end as identified_mental_health_professional,
+            case
+                when
+                    ch_safety_planning_strengths
+                    ilike '%Incorporated least invasive intervention%'
+                then 1
+                else 0
+            end as incorporated_least_invasive_intervention,
+            case
+                when
+                    ch_saftey_assessment_improvement
+                    ilike '%A threat assessment was needed and was NOT completed%'
+                then 1
+                else 0
+            end as threat_assessment_not_completed,
+            case
+                when
+                    ch_saftey_assessment_improvement
+                    ilike '%Asked multiple safety questions in one message%'
+                then 1
+                else 0
+            end as asked_multiple_questions_in_one_message,
+            case
+                when
+                    ch_saftey_assessment_improvement
+                    ilike '%Did not ask both required safety assessment questions%'
+                then 1
+                else 0
+            end as did_not_ask_all_required_safety_questions,
+            case
+                when
+                    ch_saftey_assessment_improvement
+                    ilike '%Did not assess disclosed NSSI (self-harm)%'
+                then 1
+                else 0
+            end as did_not_assess_disclosed_nssi_self,
+            case
+                when
+                    ch_saftey_assessment_improvement
+                    ilike '%Did not assess for intent (and should have)%'
+                then 1
+                else 0
+            end as did_not_assess_for_intent_and_should_have,
+            case
+                when
+                    ch_saftey_assessment_improvement
+                    ilike '%Did not assess for means (and should have)%'
+                then 1
+                else 0
+            end as did_not_assess_for_means_and_should_have,
+            case
+                when
+                    ch_saftey_assessment_improvement
+                    ilike '%Did not assess for plan (and should have)%'
+                then 1
+                else 0
+            end as did_not_assess_for_plan_and_should_have,
+            case
+                when
+                    ch_saftey_assessment_improvement
+                    ilike '%Did not assess for timeline (and should have)%'
+                then 1
+                else 0
+            end as did_not_assess_for_timeline_and_should_have,
+            case
+                when
+                    ch_saftey_assessment_improvement
+                    ilike '%Did not clearly and directly ask about suicide%'
+                then 1
+                else 0
+            end as did_not_ask_about_suicide,
+            case
+                when
+                    ch_saftey_assessment_improvement
+                    ilike '%Did not complete a safety assessment at all%'
+                then 1
+                else 0
+            end as no_safety_assessment_completed,
+            case
+                when
+                    ch_saftey_assessment_improvement
+                    ilike '%Did not conduct the safety assessment empathically and supportively%'
+                then 1
+                else 0
+            end as did_not_conduct_assessment_with_empathy,
+            case
+                when
+                    ch_saftey_assessment_improvement
+                    ilike '%Did not start the safety assessment at the appropriate time%'
+                then 1
+                else 0
+            end as safety_assessment_start_time_issue,
+            case
+                when
+                    ch_saftey_assessment_improvement
+                    ilike '%Did not thoroughly complete the safety assessment%'
+                then 1
+                else 0
+            end as did_not_complete_safety_assessment,
+            case
+                when
+                    ch_saftey_assessment_improvement
+                    ilike '%Third party situation, did not assess person in crisis%'
+                then 1
+                else 0
+            end as did_not_assess_person_in_crisis,
+            case
+                when
+                    ch_saftey_assessment_improvement
+                    ilike '%Third party situation, did not assess third party%'
+                then 1
+                else 0
+            end as did_not_assess_third_party,
+            case
+                when ch_wrapping_up_improvements ilike '%Chat was rushed or too short%'
+                then 1
+                else 0
+            end as chat_was_rushed_or_too_short,
+            case
+                when
+                    ch_wrapping_up_improvements
+                    ilike '%Chat was too long, better pacing could have expedited the conversation%'
+                then 1
+                else 0
+            end as chat_was_too_long,
+            case
+                when
+                    ch_wrapping_up_improvements
+                    ilike '%Did not appropriately handle offering follow-up%'
+                then 1
+                else 0
+            end as did_not_appropriately_handle_followup,
+            case
+                when
+                    ch_wrapping_up_improvements
+                    ilike '%Did not offer follow-up (and should have)%'
+                then 1
+                else 0
+            end as did_not_offer_follow_up_and_should_have,
+            case
+                when
+                    ch_wrapping_up_improvements
+                    ilike '%Did not reassess for suicide risk (suicide risk was present and disclosed earlier)%'
+                then 1
+                else 0
+            end as did_not_reassess_for_suicide_risk,
+            case
+                when
+                    ch_wrapping_up_improvements
+                    ilike '%Did not remind caller of Lifeline''s 24/7 availability%'
+                then 1
+                else 0
+            end as did_not_remind_visitor_of_24_7_availability,
+            case
+                when
+                    ch_wrapping_up_improvements
+                    ilike '%Did not review key points of contact and chat visitor''s needs%'
+                then 1
+                else 0
+            end as did_not_review_visitors_needs,
+            case
+                when
+                    ch_wrapping_up_improvements
+                    ilike '%Did not review next steps following call%'
+                then 1
+                else 0
+            end as did_not_review_next_steps_following_call,
+            case
+                when
+                    ch_wrapping_up_improvements
+                    ilike '%Inappropriately closed the conversation (e.g., abruptly, after person said they were not suicidal, etc.)%'
+                then 1
+                else 0
+            end as inappropriately_closed_the_conversation,
+            case
+                when
+                    ch_wrapping_up_strengths
+                    ilike '%Appropriately handled offering follow-up%'
+                then 1
+                else 0
+            end as appropriately_handled_offering_follow_up,
+            case
+                when
+                    ch_wrapping_up_strengths
+                    ilike '%Appropriately paced the conversation%'
+                then 1
+                else 0
+            end as appropriately_paced_the_conversation,
+            case
+                when
+                    ch_wrapping_up_strengths
+                    ilike '%Re-assessed visitor for suicide risk (if indicated earlier in the conversation)%'
+                then 1
+                else 0
+            end as re_assessed_visitor_for_suicide_risk,
+            case
+                when
+                    ch_wrapping_up_strengths
+                    ilike '%Reminded visitor of 24/7 chat availability%'
+                then 1
+                else 0
+            end as reminded_of_24_7_chat_availability,
+            case
+                when
+                    ch_wrapping_up_strengths
+                    ilike '%Reviewed key points of contact and chat visitor''s needs%'
+                then 1
+                else 0
+            end as reviewed_key_points_of_contact_and_needs,
+            case
+                when
+                    ch_wrapping_up_strengths
+                    ilike '%Reviewed next steps following call%'
+                then 1
+                else 0
+            end as reviewed_next_steps_following_call,
+            case
+                when
+                    ch_wrapping_up_strengths
+                    ilike '%Warmly and appropriately ended the conversation%'
+                then 1
+                else 0
+            end as appropriately_ended_the_conversation,
+            case
+                when
+                    ch_rescue_strengths
+                    ilike '%Attempted to initiate a collaborative active rescue%'
+                then 1
+                else 0
+            end as ATTEMPTED_COLLABORATIVE_RESCUE,
+            case
+                when
+                    ch_problem_solving_improvements
+                    ilike '%Did not appropriately handle offering referrals%'
+                then 1
+                else 0
+            end as did_not_appropriately_handle_referral,
+            0 AS did_not_create_a_caring_and_safe_climate,
+            0 AS did_not_exhibit_trust_or_competence,
+            0 AS did_not_match_the_callers_pace,
+            0 AS did_not_seem_engaged_or_attentive,
+            0 AS did_not_use_a_warm_and_genuine_tone,
+            0 AS little_to_no_paraphrasing,
+            0 AS conversational_versus_checklist_style,
+            0 AS created_a_caring_and_safe_climate,
+            0 AS demonstrated_empathy,
+            0 AS exhibits_trust_competence_confidence,
+            0 AS matched_the_callers_language_and_pace,
+            0 AS provided_appropriate_validation,
+            0 AS reflected_back_callers_feelings,
+            0 AS uses_paraphrasing,
+            0 AS explored_presenting_concerns,
+            0 AS did_not_assess_ability_to_increase_safety,
+            0 AS did_not_consult_supervisor,
+            0 AS did_not_explore_immediate_support_option,
+            0 AS consulted_supervisor,
+            0 AS did_not_explore_pros_cons_of_alternatives,
+            0 AS gave_advice_to_caller,
+            --0 AS did_not_appropriately_handle_referral,
+            0 AS did_not_initiate_emergency_intervention,
+            0 AS did_not_offer_a_follow_up,
+            0 AS failed_to_support_during_intervention,
+            0 AS spoke_about_process_of_emergency_intervention,
+            0 AS engaged_during_emergency_intervention,
+            0 AS offered_caller_a_follow_up,
+            0 AS did_not_assess_past_suicidal_thoughts,
+            0 AS did_not_assess_for_suicidal_thoughts,
+            0 AS explained_safety_assessment,
+            0 AS addressed_means_restriction,
+            0 AS did_not_address_means_restriction,
+            0 AS did_not_explore_warning_signs,
+            0 AS did_not_identify_family_members,
+            0 AS did_not_identify_health_professionals,
+            0 AS did_not_identify_social_contacts,
+            0 AS did_not_end_call_in_an_empowering_way,
+            0 AS did_not_initiate_wrap_up_appropriately,
+            0 AS ended_call_in_an_empowering_way,
+            0 AS initiated_wrap_up_appropriately,
+            0 AS attempted_collaborative_emergency_intervention,
+            0 AS explored_options_for_inperson_support,
+            0 AS explored_pros_cons_of_alts,
+            0 AS did_not_communicate_emergency_intervention_process,
+            0 AS no_notification_of_hearing_status,
+            0 AS notification_of_hearing_status,
+            0 AS did_not_identify_interpret_services,
+            0 AS identify_interpret_services
+        from form_submissions
+        where record_type_id = '012Dn0000008HsDIAU'
+    ),
+    primary_question_set as (
+        select 
+        id,
+        modality,
+        counselor_sounded_scripted,
+        did_not_create_a_caring_and_safe_climate,
+        did_not_demonstrate_empathy,
+        did_not_exhibit_trust_or_competence,
+        did_not_match_the_callers_pace,
+        did_not_seem_engaged_or_attentive,
+        did_not_use_a_warm_and_genuine_tone,
+        little_to_no_paraphrasing,
+        sent_messages_could_read_as_judgmental,
+        used_self_disclosure_inappropriately,
+        was_repetitive_in_language_skills_use,
+        little_to_no_use_of_engagement_skills,
+        conversational_versus_checklist_style,
+        created_a_caring_and_safe_climate,
+        demonstrated_empathy,
+        exhibits_trust_competence_confidence,
+        matched_the_callers_language_and_pace,
+        provided_appropriate_validation,
+        reflected_back_callers_feelings,
+        stayed_engaged_and_in_the_present,
+        used_a_warm_and_genuine_tone,
+        used_self_disclosure_when_appropriate,
+        uses_paraphrasing,
+        non_judgmental_accepting_respectful,
+        natural_use_of_engagement_skills,
+        asked_questions_in_an_interrogative_form,
+        did_not_explore_presenting_concerns,
+        did_not_give_appropriate_space,
+        did_not_identify_events_or_triggers,
+        did_not_deepen_the_relationship,
+        jumped_prematurely_to_problem_solving,
+        did_not_jump_prematurely_to_problem_solving,
+        explored_presenting_concerns,
+        visitor_had_space_to_share,
+        identified_event_or_triggers,
+        deepened_relationship_understanding,
+        did_not_ask_to_stay_safe,
+        did_not_assess_ability_to_increase_safety,
+        did_not_consult_supervisor,
+        did_not_explore_immediate_support_option,
+        did_not_identify_least_invasive_intervention,
+        imminent_risk_situation_not_assessed,
+        threatened_active_rescue,
+        did_not_engage_about_suicidal_thoughts,
+        did_not_assess_risk_or_protective_factor,
+        did_not_assess_ability_to_reduce_risk,
+        asked_visitor_to_stay_safe,
+        assessed_willingness_to_reduce_risk,
+        consulted_supervisor,
+        identified_imminent_risk_situation,
+        identified_least_invasive_intervention,
+        discussed_suicidal_thoughts_behavior,
+        did_not_explore_pros_cons_of_alternatives,
+        did_not_explore_visitors_solutions,
+        did_not_help_visitor_identify_problem,
+        did_not_work_with_visitor_to_create_a_plan,
+        gave_advice_to_caller,
+        did_not_appropriately_handle_referral,
+        did_not_handle_abuse_situation,
+        took_responsibility_for_fixing_problem,
+        handled_offering_referrals_and_resources,
+        avoided_taking_responsibility_for_fix,
+        explored_visitors_previous_solutions,
+        helped_visitor_identify_problems,
+        worked_with_visitor_to_create_plan,
+        explored_alternatives,
+        handled_potential_abuse_situation,
+        did_not_initiate_emergency_intervention,
+        did_not_offer_a_follow_up,
+        failed_to_support_during_intervention,
+        did_not_offer_a_follow_up_after_rescue,
+        inappropriately_left_chatter,
+        did_not_collaborate_and_complete_intervention,
+        attempted_collaborative_emergency_intervention,
+        spoke_about_process_of_emergency_intervention,
+        engaged_during_emergency_intervention,
+        offered_caller_a_follow_up,
+        offered_chatter_a_follow_up,
+        supported_chatter_during_rescue_process,
+        collaborated_to_complete_intervention,
+        threat_assessment_not_completed,
+        did_not_assess_past_suicidal_thoughts,
+        did_not_assess_disclosed_nssi_self,
+        did_not_assess_for_intent_and_should_have,
+        did_not_assess_for_means_and_should_have,
+        did_not_assess_for_plan_and_should_have,
+        did_not_assess_for_suicidal_thoughts,
+        did_not_assess_for_timeline_and_should_have,
+        no_safety_assessment_completed,
+        did_not_conduct_assessment_with_empathy,
+        safety_assessment_start_time_issue,
+        did_not_complete_safety_assessment,
+        did_not_assess_person_in_crisis,
+        did_not_assess_third_party,
+        asked_multiple_questions_in_one_message,
+        did_not_ask_about_suicide,
+        threat_assessment_completed,
+        explained_safety_assessment,
+        assessed_recent_suicidal_ideation,
+        assessed_disclosed_nssi_self_harm,
+        assessed_for_safety_or_suicide_in_progress,
+        assessed_for_intent,
+        assessed_for_plan,
+        assessed_for_suicide_means,
+        assessed_for_timeline,
+        assessed_current_suicidal_ideation,
+        started_assessment_time_correctly,
+        supported_visitor_completed_assessment,
+        assessed_person_in_crisis,
+        assessed_third_party,
+        completed_thorough_safety_assessment,
+        addressed_means_restriction,
+        did_not_address_means_restriction,
+        did_not_collaboratively_create_a_plan,
+        did_not_explore_warning_signs,
+        did_not_identify_coping_skills,
+        did_not_identify_family_members,
+        did_not_identify_health_professionals,
+        did_not_identify_social_contacts,
+        no_safety_plan_completed,
+        did_not_explore_buffers,
+        level_of_intervention_was_inappropriate,
+        started_safety_plan_to_early,
+        addressed_making_the_environment_safe,
+        did_not_address_making_the_environment_safe,
+        did_not_create_thorough_safety_plan,
+        collaboratively_created_a_safety_plan,
+        collaboratively_explored_means_restriction,
+        explored_warning_signs,
+        identified_coping_skills,
+        identified_family_members,
+        identified_social_contacts,
+        identified_mental_health_professional,
+        incorporated_least_invasive_intervention,
+        explored_buffers,
+        explored_making_the_environment_safe,
+        did_not_end_call_in_an_empowering_way,
+        did_not_initiate_wrap_up_appropriately,
+        did_not_reassess_for_suicide_risk,
+        did_not_remind_visitor_of_24_7_availability,
+        did_not_review_visitors_needs,
+        did_not_review_next_steps_following_call,
+        inappropriately_closed_the_conversation,
+        did_not_offer_follow_up_and_should_have,
+        chat_was_rushed_or_too_short,
+        chat_was_too_long,
+        did_not_appropriately_handle_followup,
+        ended_call_in_an_empowering_way,
+        initiated_wrap_up_appropriately,
+        re_assessed_visitor_for_suicide_risk,
+        reminded_of_24_7_chat_availability,
+        reviewed_key_points_of_contact_and_needs,
+        reviewed_next_steps_following_call,
+        appropriately_ended_the_conversation,
+        appropriately_handled_offering_follow_up,
+        appropriately_paced_the_conversation,
+        explored_options_for_inperson_support,
+        explored_pros_cons_of_alts,
+        did_not_communicate_emergency_intervention_process,
+        did_not_ask_all_required_safety_questions,
+        assessed_risk_and_protective_factors,
+        attempted_collaborative_rescue,
+        no_notification_of_hearing_status,
+        notification_of_hearing_status,
+        did_not_identify_interpret_services,
+        identify_interpret_services
+        from chat_question_base
+        union
+        select
+        id,
+        modality,
+        counselor_sounded_scripted,
+        did_not_create_a_caring_and_safe_climate,
+        did_not_demonstrate_empathy,
+        did_not_exhibit_trust_or_competence,
+        did_not_match_the_callers_pace,
+        did_not_seem_engaged_or_attentive,
+        did_not_use_a_warm_and_genuine_tone,
+        little_to_no_paraphrasing,
+        sent_messages_could_read_as_judgmental,
+        used_self_disclosure_inappropriately,
+        was_repetitive_in_language_skills_use,
+        little_to_no_use_of_engagement_skills,
+        conversational_versus_checklist_style,
+        created_a_caring_and_safe_climate,
+        demonstrated_empathy,
+        exhibits_trust_competence_confidence,
+        matched_the_callers_language_and_pace,
+        provided_appropriate_validation,
+        reflected_back_callers_feelings,
+        stayed_engaged_and_in_the_present,
+        used_a_warm_and_genuine_tone,
+        used_self_disclosure_when_appropriate,
+        uses_paraphrasing,
+        non_judgmental_accepting_respectful,
+        natural_use_of_engagement_skills,
+        asked_questions_in_an_interrogative_form,
+        did_not_explore_presenting_concerns,
+        did_not_give_appropriate_space,
+        did_not_identify_events_or_triggers,
+        did_not_deepen_the_relationship,
+        jumped_prematurely_to_problem_solving,
+        did_not_jump_prematurely_to_problem_solving,
+        explored_presenting_concerns,
+        visitor_had_space_to_share,
+        identified_event_or_triggers,
+        deepened_relationship_understanding,
+        did_not_ask_to_stay_safe,
+        did_not_assess_ability_to_increase_safety,
+        did_not_consult_supervisor,
+        did_not_explore_immediate_support_option,
+        did_not_identify_least_invasive_intervention,
+        imminent_risk_situation_not_assessed,
+        threatened_active_rescue,
+        did_not_engage_about_suicidal_thoughts,
+        did_not_assess_risk_or_protective_factor,
+        did_not_assess_ability_to_reduce_risk,
+        asked_visitor_to_stay_safe,
+        assessed_willingness_to_reduce_risk,
+        consulted_supervisor,
+        identified_imminent_risk_situation,
+        identified_least_invasive_intervention,
+        discussed_suicidal_thoughts_behavior,
+        did_not_explore_pros_cons_of_alternatives,
+        did_not_explore_visitors_solutions,
+        did_not_help_visitor_identify_problem,
+        did_not_work_with_visitor_to_create_a_plan,
+        gave_advice_to_caller,
+        did_not_appropriately_handle_referral,
+        did_not_handle_abuse_situation,
+        took_responsibility_for_fixing_problem,
+        handled_offering_referrals_and_resources,
+        avoided_taking_responsibility_for_fix,
+        explored_visitors_previous_solutions,
+        helped_visitor_identify_problems,
+        worked_with_visitor_to_create_plan,
+        explored_alternatives,
+        handled_potential_abuse_situation,
+        did_not_initiate_emergency_intervention,
+        did_not_offer_a_follow_up,
+        failed_to_support_during_intervention,
+        did_not_offer_a_follow_up_after_rescue,
+        inappropriately_left_chatter,
+        did_not_collaborate_and_complete_intervention,
+        attempted_collaborative_emergency_intervention,
+        spoke_about_process_of_emergency_intervention,
+        engaged_during_emergency_intervention,
+        offered_caller_a_follow_up,
+        offered_chatter_a_follow_up,
+        supported_chatter_during_rescue_process,
+        collaborated_to_complete_intervention,
+        threat_assessment_not_completed,
+        did_not_assess_past_suicidal_thoughts,
+        did_not_assess_disclosed_nssi_self,
+        did_not_assess_for_intent_and_should_have,
+        did_not_assess_for_means_and_should_have,
+        did_not_assess_for_plan_and_should_have,
+        did_not_assess_for_suicidal_thoughts,
+        did_not_assess_for_timeline_and_should_have,
+        no_safety_assessment_completed,
+        did_not_conduct_assessment_with_empathy,
+        safety_assessment_start_time_issue,
+        did_not_complete_safety_assessment,
+        did_not_assess_person_in_crisis,
+        did_not_assess_third_party,
+        asked_multiple_questions_in_one_message,
+        did_not_ask_about_suicide,
+        threat_assessment_completed,
+        explained_safety_assessment,
+        assessed_recent_suicidal_ideation,
+        assessed_disclosed_nssi_self_harm,
+        assessed_for_safety_or_suicide_in_progress,
+        assessed_for_intent,
+        assessed_for_plan,
+        assessed_for_suicide_means,
+        assessed_for_timeline,
+        assessed_current_suicidal_ideation,
+        started_assessment_time_correctly,
+        supported_visitor_completed_assessment,
+        assessed_person_in_crisis,
+        assessed_third_party,
+        completed_thorough_safety_assessment,
+        addressed_means_restriction,
+        did_not_address_means_restriction,
+        did_not_collaboratively_create_a_plan,
+        did_not_explore_warning_signs,
+        did_not_identify_coping_skills,
+        did_not_identify_family_members,
+        did_not_identify_health_professionals,
+        did_not_identify_social_contacts,
+        no_safety_plan_completed,
+        did_not_explore_buffers,
+        level_of_intervention_was_inappropriate,
+        started_safety_plan_to_early,
+        addressed_making_the_environment_safe,
+        did_not_address_making_the_environment_safe,
+        did_not_create_thorough_safety_plan,
+        collaboratively_created_a_safety_plan,
+        collaboratively_explored_means_restriction,
+        explored_warning_signs,
+        identified_coping_skills,
+        identified_family_members,
+        identified_social_contacts,
+        identified_mental_health_professional,
+        incorporated_least_invasive_intervention,
+        explored_buffers,
+        explored_making_the_environment_safe,
+        did_not_end_call_in_an_empowering_way,
+        did_not_initiate_wrap_up_appropriately,
+        did_not_reassess_for_suicide_risk,
+        did_not_remind_visitor_of_24_7_availability,
+        did_not_review_visitors_needs,
+        did_not_review_next_steps_following_call,
+        inappropriately_closed_the_conversation,
+        did_not_offer_follow_up_and_should_have,
+        chat_was_rushed_or_too_short,
+        chat_was_too_long,
+        did_not_appropriately_handle_followup,
+        ended_call_in_an_empowering_way,
+        initiated_wrap_up_appropriately,
+        re_assessed_visitor_for_suicide_risk,
+        reminded_of_24_7_chat_availability,
+        reviewed_key_points_of_contact_and_needs,
+        reviewed_next_steps_following_call,
+        appropriately_ended_the_conversation,
+        appropriately_handled_offering_follow_up,
+        appropriately_paced_the_conversation,
+        explored_options_for_inperson_support,
+        explored_pros_cons_of_alts,
+        did_not_communicate_emergency_intervention_process,
+        did_not_ask_all_required_safety_questions,
+        assessed_risk_and_protective_factors,
+        attempted_collaborative_rescue,
+        no_notification_of_hearing_status,
+        notification_of_hearing_status,
+        did_not_identify_interpret_services,
+        identify_interpret_services
+        from calls_question_base
+        union
+        select
+        id,
+        modality,
+        counselor_sounded_scripted,
+        did_not_create_a_caring_and_safe_climate,
+        did_not_demonstrate_empathy,
+        did_not_exhibit_trust_or_competence,
+        did_not_match_the_callers_pace,
+        did_not_seem_engaged_or_attentive,
+        did_not_use_a_warm_and_genuine_tone,
+        little_to_no_paraphrasing,
+        sent_messages_could_read_as_judgmental,
+        used_self_disclosure_inappropriately,
+        was_repetitive_in_language_skills_use,
+        little_to_no_use_of_engagement_skills,
+        conversational_versus_checklist_style,
+        created_a_caring_and_safe_climate,
+        demonstrated_empathy,
+        exhibits_trust_competence_confidence,
+        matched_the_callers_language_and_pace,
+        provided_appropriate_validation,
+        reflected_back_callers_feelings,
+        stayed_engaged_and_in_the_present,
+        used_a_warm_and_genuine_tone,
+        used_self_disclosure_when_appropriate,
+        uses_paraphrasing,
+        non_judgmental_accepting_respectful,
+        natural_use_of_engagement_skills,
+        asked_questions_in_an_interrogative_form,
+        did_not_explore_presenting_concerns,
+        did_not_give_appropriate_space,
+        did_not_identify_events_or_triggers,
+        did_not_deepen_the_relationship,
+        jumped_prematurely_to_problem_solving,
+        did_not_jump_prematurely_to_problem_solving,
+        explored_presenting_concerns,
+        visitor_had_space_to_share,
+        identified_event_or_triggers,
+        deepened_relationship_understanding,
+        did_not_ask_to_stay_safe,
+        did_not_assess_ability_to_increase_safety,
+        did_not_consult_supervisor,
+        did_not_explore_immediate_support_option,
+        did_not_identify_least_invasive_intervention,
+        imminent_risk_situation_not_assessed,
+        threatened_active_rescue,
+        did_not_engage_about_suicidal_thoughts,
+        did_not_assess_risk_or_protective_factor,
+        did_not_assess_ability_to_reduce_risk,
+        asked_visitor_to_stay_safe,
+        assessed_willingness_to_reduce_risk,
+        consulted_supervisor,
+        identified_imminent_risk_situation,
+        identified_least_invasive_intervention,
+        discussed_suicidal_thoughts_behavior,
+        did_not_explore_pros_cons_of_alternatives,
+        did_not_explore_visitors_solutions,
+        did_not_help_visitor_identify_problem,
+        did_not_work_with_visitor_to_create_a_plan,
+        gave_advice_to_caller,
+        did_not_appropriately_handle_referral,
+        did_not_handle_abuse_situation,
+        took_responsibility_for_fixing_problem,
+        handled_offering_referrals_and_resources,
+        avoided_taking_responsibility_for_fix,
+        explored_visitors_previous_solutions,
+        helped_visitor_identify_problems,
+        worked_with_visitor_to_create_plan,
+        explored_alternatives,
+        handled_potential_abuse_situation,
+        did_not_initiate_emergency_intervention,
+        did_not_offer_a_follow_up,
+        failed_to_support_during_intervention,
+        did_not_offer_a_follow_up_after_rescue,
+        inappropriately_left_chatter,
+        did_not_collaborate_and_complete_intervention,
+        attempted_collaborative_emergency_intervention,
+        spoke_about_process_of_emergency_intervention,
+        engaged_during_emergency_intervention,
+        offered_caller_a_follow_up,
+        offered_chatter_a_follow_up,
+        supported_chatter_during_rescue_process,
+        collaborated_to_complete_intervention,
+        threat_assessment_not_completed,
+        did_not_assess_past_suicidal_thoughts,
+        did_not_assess_disclosed_nssi_self,
+        did_not_assess_for_intent_and_should_have,
+        did_not_assess_for_means_and_should_have,
+        did_not_assess_for_plan_and_should_have,
+        did_not_assess_for_suicidal_thoughts,
+        did_not_assess_for_timeline_and_should_have,
+        no_safety_assessment_completed,
+        did_not_conduct_assessment_with_empathy,
+        safety_assessment_start_time_issue,
+        did_not_complete_safety_assessment,
+        did_not_assess_person_in_crisis,
+        did_not_assess_third_party,
+        asked_multiple_questions_in_one_message,
+        did_not_ask_about_suicide,
+        threat_assessment_completed,
+        explained_safety_assessment,
+        assessed_recent_suicidal_ideation,
+        assessed_disclosed_nssi_self_harm,
+        assessed_for_safety_or_suicide_in_progress,
+        assessed_for_intent,
+        assessed_for_plan,
+        assessed_for_suicide_means,
+        assessed_for_timeline,
+        assessed_current_suicidal_ideation,
+        started_assessment_time_correctly,
+        supported_visitor_completed_assessment,
+        assessed_person_in_crisis,
+        assessed_third_party,
+        completed_thorough_safety_assessment,
+        addressed_means_restriction,
+        did_not_address_means_restriction,
+        did_not_collaboratively_create_a_plan,
+        did_not_explore_warning_signs,
+        did_not_identify_coping_skills,
+        did_not_identify_family_members,
+        did_not_identify_health_professionals,
+        did_not_identify_social_contacts,
+        no_safety_plan_completed,
+        did_not_explore_buffers,
+        level_of_intervention_was_inappropriate,
+        started_safety_plan_to_early,
+        addressed_making_the_environment_safe,
+        did_not_address_making_the_environment_safe,
+        did_not_create_thorough_safety_plan,
+        collaboratively_created_a_safety_plan,
+        collaboratively_explored_means_restriction,
+        explored_warning_signs,
+        identified_coping_skills,
+        identified_family_members,
+        identified_social_contacts,
+        identified_mental_health_professional,
+        incorporated_least_invasive_intervention,
+        explored_buffers,
+        explored_making_the_environment_safe,
+        did_not_end_call_in_an_empowering_way,
+        did_not_initiate_wrap_up_appropriately,
+        did_not_reassess_for_suicide_risk,
+        did_not_remind_visitor_of_24_7_availability,
+        did_not_review_visitors_needs,
+        did_not_review_next_steps_following_call,
+        inappropriately_closed_the_conversation,
+        did_not_offer_follow_up_and_should_have,
+        chat_was_rushed_or_too_short,
+        chat_was_too_long,
+        did_not_appropriately_handle_followup,
+        ended_call_in_an_empowering_way,
+        initiated_wrap_up_appropriately,
+        re_assessed_visitor_for_suicide_risk,
+        reminded_of_24_7_chat_availability,
+        reviewed_key_points_of_contact_and_needs,
+        reviewed_next_steps_following_call,
+        appropriately_ended_the_conversation,
+        appropriately_handled_offering_follow_up,
+        appropriately_paced_the_conversation,
+        explored_options_for_inperson_support,
+        explored_pros_cons_of_alts,
+        did_not_communicate_emergency_intervention_process,
+        did_not_ask_all_required_safety_questions,
+        assessed_risk_and_protective_factors,
+        attempted_collaborative_rescue,
+        no_notification_of_hearing_status,
+        notification_of_hearing_status,
+        did_not_identify_interpret_services,
+        identify_interpret_services
+        from video_question_base
+    ),
+    primary_question_set_unpivoted as (
+        select id, modality, question, value
+        from
+            primary_question_set unpivot (
+                value for question in (
+                    counselor_sounded_scripted,
+                    did_not_create_a_caring_and_safe_climate,
+                    did_not_demonstrate_empathy,
+                    did_not_exhibit_trust_or_competence,
+                    did_not_match_the_callers_pace,
+                    did_not_seem_engaged_or_attentive,
+                    did_not_use_a_warm_and_genuine_tone,
+                    little_to_no_paraphrasing,
+                    sent_messages_could_read_as_judgmental,
+                    used_self_disclosure_inappropriately,
+                    was_repetitive_in_language_skills_use,
+                    little_to_no_use_of_engagement_skills,
+                    conversational_versus_checklist_style,
+                    created_a_caring_and_safe_climate,
+                    demonstrated_empathy,
+                    exhibits_trust_competence_confidence,
+                    matched_the_callers_language_and_pace,
+                    provided_appropriate_validation,
+                    reflected_back_callers_feelings,
+                    stayed_engaged_and_in_the_present,
+                    used_a_warm_and_genuine_tone,
+                    used_self_disclosure_when_appropriate,
+                    uses_paraphrasing,
+                    non_judgmental_accepting_respectful,
+                    natural_use_of_engagement_skills,
+                    asked_questions_in_an_interrogative_form,
+                    did_not_explore_presenting_concerns,
+                    did_not_give_appropriate_space,
+                    did_not_identify_events_or_triggers,
+                    did_not_deepen_the_relationship,
+                    jumped_prematurely_to_problem_solving,
+                    did_not_jump_prematurely_to_problem_solving,
+                    explored_presenting_concerns,
+                    visitor_had_space_to_share,
+                    identified_event_or_triggers,
+                    deepened_relationship_understanding,
+                    did_not_ask_to_stay_safe,
+                    did_not_assess_ability_to_increase_safety,
+                    did_not_consult_supervisor,
+                    did_not_explore_immediate_support_option,
+                    did_not_identify_least_invasive_intervention,
+                    imminent_risk_situation_not_assessed,
+                    threatened_active_rescue,
+                    did_not_engage_about_suicidal_thoughts,
+                    did_not_assess_risk_or_protective_factor,
+                    did_not_assess_ability_to_reduce_risk,
+                    asked_visitor_to_stay_safe,
+                    assessed_willingness_to_reduce_risk,
+                    consulted_supervisor,
+                    identified_imminent_risk_situation,
+                    identified_least_invasive_intervention,
+                    discussed_suicidal_thoughts_behavior,
+                    did_not_explore_pros_cons_of_alternatives,
+                    did_not_explore_visitors_solutions,
+                    did_not_help_visitor_identify_problem,
+                    did_not_work_with_visitor_to_create_a_plan,
+                    gave_advice_to_caller,
+                    did_not_appropriately_handle_referral,
+                    did_not_handle_abuse_situation,
+                    took_responsibility_for_fixing_problem,
+                    handled_offering_referrals_and_resources,
+                    avoided_taking_responsibility_for_fix,
+                    explored_visitors_previous_solutions,
+                    helped_visitor_identify_problems,
+                    worked_with_visitor_to_create_plan,
+                    explored_alternatives,
+                    handled_potential_abuse_situation,
+                    did_not_initiate_emergency_intervention,
+                    did_not_offer_a_follow_up,
+                    failed_to_support_during_intervention,
+                    did_not_offer_a_follow_up_after_rescue,
+                    inappropriately_left_chatter,
+                    did_not_collaborate_and_complete_intervention,
+                    attempted_collaborative_emergency_intervention,
+                    spoke_about_process_of_emergency_intervention,
+                    engaged_during_emergency_intervention,
+                    offered_caller_a_follow_up,
+                    offered_chatter_a_follow_up,
+                    supported_chatter_during_rescue_process,
+                    collaborated_to_complete_intervention,
+                    threat_assessment_not_completed,
+                    did_not_assess_past_suicidal_thoughts,
+                    did_not_assess_disclosed_nssi_self,
+                    did_not_assess_for_intent_and_should_have,
+                    did_not_assess_for_means_and_should_have,
+                    did_not_assess_for_plan_and_should_have,
+                    did_not_assess_for_suicidal_thoughts,
+                    did_not_assess_for_timeline_and_should_have,
+                    no_safety_assessment_completed,
+                    did_not_conduct_assessment_with_empathy,
+                    safety_assessment_start_time_issue,
+                    did_not_complete_safety_assessment,
+                    did_not_assess_person_in_crisis,
+                    did_not_assess_third_party,
+                    asked_multiple_questions_in_one_message,
+                    did_not_ask_about_suicide,
+                    threat_assessment_completed,
+                    explained_safety_assessment,
+                    assessed_recent_suicidal_ideation,
+                    assessed_disclosed_nssi_self_harm,
+                    assessed_for_safety_or_suicide_in_progress,
+                    assessed_for_intent,
+                    assessed_for_plan,
+                    assessed_for_suicide_means,
+                    assessed_for_timeline,
+                    assessed_current_suicidal_ideation,
+                    started_assessment_time_correctly,
+                    supported_visitor_completed_assessment,
+                    assessed_person_in_crisis,
+                    assessed_third_party,
+                    completed_thorough_safety_assessment,
+                    addressed_means_restriction,
+                    did_not_address_means_restriction,
+                    did_not_collaboratively_create_a_plan,
+                    did_not_explore_warning_signs,
+                    did_not_identify_coping_skills,
+                    did_not_identify_family_members,
+                    did_not_identify_health_professionals,
+                    did_not_identify_social_contacts,
+                    no_safety_plan_completed,
+                    did_not_explore_buffers,
+                    level_of_intervention_was_inappropriate,
+                    started_safety_plan_to_early,
+                    addressed_making_the_environment_safe,
+                    did_not_address_making_the_environment_safe,
+                    did_not_create_thorough_safety_plan,
+                    collaboratively_created_a_safety_plan,
+                    collaboratively_explored_means_restriction,
+                    explored_warning_signs,
+                    identified_coping_skills,
+                    identified_family_members,
+                    identified_social_contacts,
+                    identified_mental_health_professional,
+                    incorporated_least_invasive_intervention,
+                    explored_buffers,
+                    explored_making_the_environment_safe,
+                    did_not_end_call_in_an_empowering_way,
+                    did_not_initiate_wrap_up_appropriately,
+                    did_not_reassess_for_suicide_risk,
+                    did_not_remind_visitor_of_24_7_availability,
+                    did_not_review_visitors_needs,
+                    did_not_review_next_steps_following_call,
+                    inappropriately_closed_the_conversation,
+                    did_not_offer_follow_up_and_should_have,
+                    chat_was_rushed_or_too_short,
+                    chat_was_too_long,
+                    did_not_appropriately_handle_followup,
+                    ended_call_in_an_empowering_way,
+                    initiated_wrap_up_appropriately,
+                    re_assessed_visitor_for_suicide_risk,
+                    reminded_of_24_7_chat_availability,
+                    reviewed_key_points_of_contact_and_needs,
+                    reviewed_next_steps_following_call,
+                    appropriately_ended_the_conversation,
+                    appropriately_handled_offering_follow_up,
+                    appropriately_paced_the_conversation,
+                    explored_options_for_inperson_support,
+                    explored_pros_cons_of_alts,
+                    did_not_communicate_emergency_intervention_process,
+                    did_not_ask_all_required_safety_questions,
+                    assessed_risk_and_protective_factors,
+                    attempted_collaborative_rescue,
+                    no_notification_of_hearing_status,
+                    notification_of_hearing_status,
+                    did_not_identify_interpret_services,
+                    identify_interpret_services
+                )
+            ) as unpivoted
+    ),
+    buffers_performance_category as (
+
+        select
+            id,
+            (
+                coalesce(ambivalence, 0)
+                + coalesce(core_beliefs, 0)
+                + coalesce(engagement_with_helper, 0)
+                + coalesce(immediate_supports, 0)
+                + coalesce(planning_for_future, 0)
+                + coalesce(reasons_for_living, 0)
+                + coalesce(sense_of_purpose, 0)
+                + coalesce(social_supports, 0)
+            ) / nullif(
+                sign(abs(coalesce(ambivalence, 0)))
+                + sign(abs(coalesce(core_beliefs, 0)))
+                + sign(abs(coalesce(engagement_with_helper, 0)))
+                + sign(abs(coalesce(immediate_supports, 0)))
+                + sign(abs(coalesce(planning_for_future, 0)))
+                + sign(abs(coalesce(reasons_for_living, 0)))
+                + sign(abs(coalesce(sense_of_purpose, 0)))
+                + sign(abs(coalesce(social_supports, 0))),
+                0
+            ) as counselor_behavior_with_regard_to_buffers
+        from form_submissions
+    ),
+    desire_performance_category as (
+
+        select
+            id,
+            (
+                coalesce(feeling_intolerably_alone, 0)
+                + coalesce(feeling_trapped, 0)
+                + coalesce(hopelessness, 0)
+                + coalesce(perceived_burden, 0)
+                + coalesce(psychological_pain, 0)
+                + coalesce(self_hate, 0)
+                + coalesce(suicidal_ideation, 0)
+            ) / nullif(
+                sign(abs(coalesce(feeling_intolerably_alone, 0)))
+                + sign(abs(coalesce(feeling_trapped, 0)))
+                + sign(abs(coalesce(hopelessness, 0)))
+                + sign(abs(coalesce(perceived_burden, 0)))
+                + sign(abs(coalesce(psychological_pain, 0)))
+                + sign(abs(coalesce(self_hate, 0)))
+                + sign(abs(coalesce(suicidal_ideation, 0))),
+                0
+            ) as counselor_behavior_with_regard_to_desire
+        from form_submissions
+    ),
+    capability_performance_category as (
+
+        select
+            id,
+            (
+                coalesce(acute_symptoms_of_mental_illness, 0)
+                + coalesce(available_means, 0)
+                + coalesce(currently_intoxicated, 0)
+                + coalesce(dysregulated, 0)
+                + coalesce(exposure_to_someone_else_s_attempt, 0)
+                + coalesce(history_of_attempts, 0)
+                + coalesce(history_of_self_harm_nssi, 0)
+                + coalesce(history_of_violence_to_others, 0)
+                + coalesce(increased_anxiety, 0)
+                + coalesce(sleep_disturbance, 0)
+                + coalesce(substance_use, 0)
+            ) / nullif(
+                sign(abs(coalesce(acute_symptoms_of_mental_illness, 0)))
+                + sign(abs(coalesce(available_means, 0)))
+                + sign(abs(coalesce(currently_intoxicated, 0)))
+                + sign(abs(coalesce(dysregulated, 0)))
+                + sign(abs(coalesce(exposure_to_someone_else_s_attempt, 0)))
+                + sign(abs(coalesce(history_of_attempts, 0)))
+                + sign(abs(coalesce(history_of_self_harm_nssi, 0)))
+                + sign(abs(coalesce(history_of_violence_to_others, 0)))
+                + sign(abs(coalesce(increased_anxiety, 0)))
+                + sign(abs(coalesce(sleep_disturbance, 0)))
+                + sign(abs(coalesce(substance_use, 0))),
+                0
+            ) as counselor_behavior_with_regard_to_capability
+        from form_submissions
+    ),
+    intent_performance_category as (
+
+        select
+            id,
+            (
+                coalesce(attempt_in_progress, 0)
+                + coalesce(expressed_intent_to_die, 0)
+                + coalesce(plan_method_known, 0)
+                + coalesce(preparatory_behaviors, 0)
+            ) / nullif(
+                sign(abs(coalesce(attempt_in_progress, 0)))
+                + sign(abs(coalesce(expressed_intent_to_die, 0)))
+                + sign(abs(coalesce(plan_method_known, 0)))
+                + sign(abs(coalesce(preparatory_behaviors, 0))),
+                0
+            ) as counselor_behavior_with_regard_to_intent
+        from form_submissions
+    ),
+    complete_question_set as (
+
+        select
+            id,
+            'counselor_behavior_with_regard_to_buffers' as question,
+            counselor_behavior_with_regard_to_buffers as value
+        from buffers_performance_category
+        union
+        select
+            id,
+            'counselor_behavior_with_regard_to_desire' as question,
+            counselor_behavior_with_regard_to_desire as value
+        from desire_performance_category
+        union
+        select
+            id,
+            'counselor_behavior_with_regard_to_capability' as question,
+            counselor_behavior_with_regard_to_capability as value
+        from capability_performance_category
+        union
+        select
+            id,
+            'counselor_behavior_with_regard_to_intent' as question,
+            counselor_behavior_with_regard_to_intent as value
+        from intent_performance_category
+        union
+        select
+            id,
+            'counselor_behavior_regarding_active_engagement' as question,
+            counselor_behavior_regarding_active_engagement as value
+        from form_submissions
+        union
+        select
+            id,
+            'counselor_behavior_with_regard_to_safety_planning' as question,
+            counselor_behavior_with_regard_to_safety_planning as value
+        from form_submissions
+        union
+        select
+            id,
+            'counselor_behavior_regarding_collaborative_problem_solving' as question,
+            counselor_behavior_regarding_collaborative_problem_solving as value
+        from form_submissions
+        union
+        select
+            id,
+            'counselor_behavior_regarding_suicide_safety_assessment' as question,
+            counselor_behavior_regarding_suicide_safety_assessment as value
+        from form_submissions
+        union
+        select
+            id,
+            'counselor_behavior_regarding_imminent_risk_visitor' as question,
+            counselor_behavior_regarding_imminent_risk_visitor as value
+        from form_submissions
+        union
+        select
+            id,
+            'counselor_behavior_regarding_exploring_the_situation' as question,
+            counselor_behavior_regarding_exploring_the_situation as value
+        from form_submissions
+        union
+        select
+            id,
+            'counselor_behavior_with_regard_to_rescue' as question,
+            counselor_behavior_with_regard_to_rescue as value
+        from form_submissions
+        union
+        select
+            id,
+            'counselor_behavior_with_regard_to_wrapping_up_the_call' as question,
+            counselor_behavior_with_regard_to_wrapping_up_the_call as value
+        from form_submissions
+        union
+        select id, question, value
+        from primary_question_set_unpivoted
+    ), final as (
+
+        select
+            form.id,
+            form.interaction_id,
+            form.name,
+            form.legacy_key,
+            form.crisis_center_key,
+            form.center_name,
+            form.nature_of_the_conversation,
+            form.submitter,
+            form.submitted_date,
+            form.supervisor_reviewer,
+            form.counselors_name,
+            form.report_number,
+            form.network,
+            form.date_time_of_interaction,
+            form.created_date,
+            form.documentation,
+            form.interaction_review_needed,
+            form.training_tools,
+            form.modality,
+            form.active_engagement_other_improvement,
+            form.active_engagement_other_strength,
+            form.exploring_situation_other_improvements,
+            form.exploring_situation_other_strengths,
+            form.imminent_risk_other_improvement,
+            form.imminent_risk_other_strengths,
+            form.problem_solving_other_improvement,
+            form.problem_solving_other_strengths,
+            form.rescue_other_improvements,
+            form.rescue_other_strengths,
+            form.safety_assessment_other_improvement,
+            form.safety_assessment_other_strengths,
+            form.safety_planning_other_improvements,
+            form.safety_planning_other_strengths,
+            form.wrapping_up_other_improvements,
+            form.wrapping_up_other_strengths,
+            form.feedback,
+            cqs.question,
+            cqs.value,
+            bpc.counselor_behavior_with_regard_to_buffers,
+            dpc.counselor_behavior_with_regard_to_desire,
+            cpc.counselor_behavior_with_regard_to_capability,
+            ipc.counselor_behavior_with_regard_to_intent,
+            form.counselor_behavior_regarding_active_engagement,
+            form.counselor_behavior_with_regard_to_safety_planning,
+            form.counselor_behavior_regarding_collaborative_problem_solving,
+            form.counselor_behavior_regarding_suicide_safety_assessment,
+            form.counselor_behavior_regarding_imminent_risk_visitor,
+            form.counselor_behavior_regarding_exploring_the_situation,
+            form.counselor_behavior_with_regard_to_rescue,
+            form.counselor_behavior_with_regard_to_wrapping_up_the_call,
+            (
+                coalesce(counselor_behavior_with_regard_to_buffers, 0)
+                + coalesce(counselor_behavior_with_regard_to_desire, 0)
+                + coalesce(counselor_behavior_with_regard_to_capability, 0)
+                + coalesce(counselor_behavior_with_regard_to_intent, 0)
+                + coalesce(counselor_behavior_regarding_active_engagement, 0)
+                + coalesce(counselor_behavior_with_regard_to_safety_planning, 0)
+                + coalesce(
+                    counselor_behavior_regarding_collaborative_problem_solving, 0
+                )
+                + coalesce(counselor_behavior_regarding_suicide_safety_assessment, 0)
+                + coalesce(counselor_behavior_regarding_imminent_risk_visitor, 0)
+                + coalesce(counselor_behavior_regarding_exploring_the_situation, 0)
+                + coalesce(counselor_behavior_with_regard_to_rescue, 0)
+                + coalesce(counselor_behavior_with_regard_to_wrapping_up_the_call, 0)
+            ) / nullif(
+                sign(abs(coalesce(counselor_behavior_with_regard_to_buffers, 0)))
+                + sign(abs(coalesce(counselor_behavior_with_regard_to_desire, 0)))
+                + sign(abs(coalesce(counselor_behavior_with_regard_to_capability, 0)))
+                + sign(abs(coalesce(counselor_behavior_with_regard_to_intent, 0)))
+                + sign(abs(coalesce(counselor_behavior_regarding_active_engagement, 0)))
+                + sign(
+                    abs(coalesce(counselor_behavior_with_regard_to_safety_planning, 0))
+                )
+                + sign(
+                    abs(
+                        coalesce(
+                            counselor_behavior_regarding_collaborative_problem_solving,
+                            0
+                        )
+                    )
+                )
+                + sign(
+                    abs(
+                        coalesce(
+                            counselor_behavior_regarding_suicide_safety_assessment, 0
+                        )
+                    )
+                )
+                + sign(
+                    abs(coalesce(counselor_behavior_regarding_imminent_risk_visitor, 0))
+                )
+                + sign(
+                    abs(
+                        coalesce(
+                            counselor_behavior_regarding_exploring_the_situation, 0
+                        )
+                    )
+                )
+                + sign(abs(coalesce(counselor_behavior_with_regard_to_rescue, 0)))
+                + sign(
+                    abs(
+                        coalesce(
+                            counselor_behavior_with_regard_to_wrapping_up_the_call, 0
+                        )
+                    )
+                ),
+                0
+            ) as interaction_final_score
+        from form_submissions form
+        left join complete_question_set cqs on form.id = cqs.id
+        left join buffers_performance_category bpc on form.id = bpc.id
+        left join desire_performance_category dpc on form.id = dpc.id
+        left join capability_performance_category cpc on form.id = cpc.id
+        left join intent_performance_category ipc on form.id = ipc.id
+    )
+
+select *
+from final
