@@ -1,0 +1,145 @@
+WITH DEMOGRAPHICS_SUBSET AS(
+--use database staging 
+
+--use database ANALYTICS_DEV 
+--create schema jhofmann_materialized_views
+
+--create or replace view ANALYTICS_DEV.jhofmann_materialized_views.demographics_subset_jh AS( 
+--SELECT COUNT (*) FROM (
+select
+    ------ key ids
+    hsp_up_help_seeker_profile_id,
+    hsp_up_chat_session_id,
+    hsp_c_case_id,
+    ------ other non-id values to use for filtering or grouping
+    hsp_c_survey_case_id_salesforce,
+    hsp_c_survey_type,
+    hsp_c_contact_type,
+    int_up_channel_type,
+    int_up_initiated_dt_utc,
+    
+    -- concerns
+    hsp_c_clean_cc_primary_main_concernxx,
+    coalesce(
+        dca_d_stg_concern,
+        domo_pre_stg_concern,
+        hsp_cs_clean_what_are_your_main_concerns
+        ) as concerns_final,
+    hsp_c_clean_cc_other_relevant_secondary_concerns,
+    
+    --upset level
+    coalesce(
+        dca_d_stg_upset_amount,
+        domo_pre_stg_upset_amount,
+        hsp_cs_clean_cc_on_a_scale_of_1_5_how_upset_are_you
+        ) as upset_level_final,
+    dca_d_stg_upset_rating,
+    
+    -- suicidal
+    coalesce(
+        hsp_cs_clean_cc_do_you_have_thoughts_of_suicide,
+        domo_pre_stg_thoughts_of_suicide,
+        iff(hsp_c_clean_cc_suicidal_thoughts_today_last_few_days = 'Yes', 'current', NULL),
+        hsp_ca_clean_cc_suicidal_ideation
+        ) as thoughts_of_suicide_final,
+    hsp_c_clean_cc_is_visitor_at_imminent_risk_of_suicid,
+
+    -- demographics
+    age_final,
+    postal_code_final,
+    state_code_final,
+    postal_code_derived,
+    state_code_derived,
+    gender_final,
+    race_final,
+    ethnicity_final,
+    sexual_orientation_final,
+    transgender_final
+
+from analytics_dev.dbt_tschnack_intermediate.int_help_seeker_profiles_demog_up
+where
+    1=1
+    and hsp_c_contact_type = 'Transactional'
+    and int_up_channel_type is not null
+--)
+
+)--,
+
+    SELECT 
+        --HSP_UP_HELP_SEEKER_PROFILE_ID AS Help_Seeker_Profile_ID_Demo,
+        CASE 
+            WHEN INT_UP_CHANNEL_TYPE = 'Voice' THEN 'Calls'
+            WHEN INT_UP_CHANNEL_TYPE = 'SMS' THEN 'Text'
+            WHEN INT_UP_CHANNEL_TYPE = 'Chat' THEN 'Chat'
+            ELSE INT_UP_CHANNEL_TYPE
+        END AS Modality_Demo,
+        CAST(INT_UP_INITIATED_DT_UTC AS Date) AS Initiated_Date_UTC_Demo,
+        HSP_C_CLEAN_CC_PRIMARY_MAIN_CONCERNXX AS Priary_Concern_Demo,
+        UPSET_LEVEL_FINAL AS Upset_Level_Demo,
+        THOUGHTS_OF_SUICIDE_FINAL AS Suicide_Thoughts_Demo,
+        CASE WHEN HSP_C_CLEAN_CC_IS_VISITOR_AT_IMMINENT_RISK_OF_SUICID = 'Yes, Third Party' THEN 'Yes' ELSE HSP_C_CLEAN_CC_IS_VISITOR_AT_IMMINENT_RISK_OF_SUICID END AS Imminent_Risk_Demo,
+        --AGE_FINAL AS Age_Demo,
+        CASE
+            WHEN AGE_FINAL <18 THEN '<18'
+            WHEN AGE_FINAL >=18 AND AGE_FINAL <25 THEN '18-25'
+            WHEN AGE_FINAL >=25 AND AGE_FINAL <35 THEN '25-35'
+            WHEN AGE_FINAL >=35 AND AGE_FINAL <50 THEN '35-50'
+            WHEN AGE_FINAL >=50 AND AGE_FINAL <65 THEN '50-65'
+            WHEN AGE_FINAL >=65 THEN '>65'
+            ELSE 'Unknown'
+            END
+        AS Age_Bucket_Demo,
+        --POSTAL_CODE_DERIVED As Zip_Code_Demo,
+        STATE_CODE_DERIVED AS State_Demo,
+        --GENDER_FINAL AS Gender_Demo,
+        CASE
+            --Unknown
+            WHEN GENDER_FINAL IS NULL THEN 'Unknown'
+            WHEN GENDER_FINAL = 'Agender' THEN 'Unknown'
+            WHEN GENDER_FINAL = 'agender' THEN 'Unknown'
+            WHEN GENDER_FINAL = 'declined_to_answer' THEN 'Unknown'
+            WHEN GENDER_FINAL = 'did_not_identify' THEN 'Unknown'
+            --Male
+            WHEN GENDER_FINAL = 'Boy/Man' THEN 'Male'
+            WHEN GENDER_FINAL = 'boy/man' THEN 'Male'
+            WHEN GENDER_FINAL = 'male' THEN 'Male'
+            --Other
+            WHEN GENDER_FINAL = 'Gender Nonconforming' THEN 'Other'
+            WHEN GENDER_FINAL = 'Genderfluid' THEN 'Other'
+            WHEN GENDER_FINAL = 'Genderqueer' THEN 'Other'
+            WHEN GENDER_FINAL = 'Not listed above' THEN 'Other'
+            WHEN GENDER_FINAL = 'Third Gender' THEN 'Other'
+            WHEN GENDER_FINAL = 'gender nonconforming' THEN 'Other'
+            WHEN GENDER_FINAL = 'genderfluid' THEN 'Other'
+            WHEN GENDER_FINAL = 'genderqueer' THEN 'Other'
+            WHEN GENDER_FINAL = 'not listed above' THEN 'Other'
+            WHEN GENDER_FINAL = 'not_listed' THEN 'Other'
+            WHEN GENDER_FINAL = 'third gender' THEN 'Other'
+            WHEN GENDER_FINAL = 'unlisted' THEN 'Other'
+            --Female
+            WHEN GENDER_FINAL = 'Girl/Woman' THEN 'Female'
+            WHEN GENDER_FINAL = 'female' THEN 'Female'
+            WHEN GENDER_FINAL = 'girl/woman' THEN 'Female'
+            --Non-binary
+            WHEN GENDER_FINAL = 'Non-binary' THEN 'Non-binary'
+            WHEN GENDER_FINAL = 'non-binary' THEN 'Non-binary'
+            WHEN GENDER_FINAL = 'nonbinary' THEN 'Non-binary'
+            WHEN GENDER_FINAL = 'nonconforming' THEN 'Non-binary'
+            WHEN GENDER_FINAL = 'two_split' THEN 'Non-binary'
+            --Unsure
+            WHEN GENDER_FINAL = 'Not sure' THEN 'Non-binary'
+            WHEN GENDER_FINAL = 'Questioning' THEN 'Non-binary'
+            WHEN GENDER_FINAL = 'not sure' THEN 'Non-binary'
+            WHEN GENDER_FINAL = 'questioning' THEN 'Non-binary'
+            --TBD
+            ELSE 'TBD'
+            END
+        AS Gender_Bucket_Demo,
+        RACE_FINAL AS Race_Demo,
+        ETHNICITY_FINAL AS Ethnicity_Demo,
+        SEXUAL_ORIENTATION_FINAL AS Sexual_Orientation_Demo,
+        TRANSGENDER_FINAL AS Transgender_Demo,
+        COUNT(distinct HSP_UP_HELP_SEEKER_PROFILE_ID) AS Helpseeker_Count
+    FROM DEMOGRAPHICS_SUBSET
+    --ANALYTICS_DEV.jhofmann_materialized_views.demographics_subset_jh
+    GROUP BY 1,2,3,4,5,6,7,8,9,10,11,12,13
