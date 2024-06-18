@@ -1,0 +1,63 @@
+use database staging 
+
+use database ANALYTICS_DEV 
+create schema jhofmann_materialized_views
+
+create or replace view ANALYTICS_DEV.jhofmann_materialized_views.demographics_subset_jh AS( 
+
+select
+    ------ key ids
+    hsp_up_help_seeker_profile_id,
+    hsp_up_chat_session_id,
+    hsp_c_case_id,
+    ------ other non-id values to use for filtering or grouping
+    hsp_c_survey_case_id_salesforce,
+    hsp_c_survey_type,
+    hsp_c_contact_type,
+    int_up_channel_type,
+    int_up_initiated_dt_utc,
+    
+    -- concerns
+    hsp_c_clean_cc_primary_main_concernxx,
+    coalesce(
+        dca_d_stg_concern,
+        domo_pre_stg_concern,
+        hsp_cs_clean_what_are_your_main_concerns
+        ) as concerns_final,
+    hsp_c_clean_cc_other_relevant_secondary_concerns,
+    
+    --upset level
+    coalesce(
+        dca_d_stg_upset_amount,
+        domo_pre_stg_upset_amount,
+        hsp_cs_clean_cc_on_a_scale_of_1_5_how_upset_are_you
+        ) as upset_level_final,
+    dca_d_stg_upset_rating,
+    
+    -- suicidal
+    coalesce(
+        hsp_cs_clean_cc_do_you_have_thoughts_of_suicide,
+        domo_pre_stg_thoughts_of_suicide,
+        iff(hsp_c_clean_cc_suicidal_thoughts_today_last_few_days = 'Yes', 'current', NULL),
+        hsp_ca_clean_cc_suicidal_ideation
+        ) as thoughts_of_suicide_final,
+    hsp_c_clean_cc_is_visitor_at_imminent_risk_of_suicid,
+
+    -- demographics
+    age_final,
+    postal_code_final,
+    state_code_final,
+    postal_code_derived,
+    state_code_derived,
+    gender_final,
+    race_final,
+    ethnicity_final,
+    sexual_orientation_final,
+    transgender_final
+
+from analytics_dev.dbt_tschnack_intermediate.int_help_seeker_profiles_demog_up
+where
+    1=1
+    and hsp_c_contact_type = 'Transactional'
+    and int_up_channel_type is not null
+--)
