@@ -1,0 +1,9 @@
+SELECT 
+        modality as modality_ti,
+        initiated_date_est as initiated_date_est_ti, --need to convert to utc
+        --center_zip AS POSTAL_CODE_DERIVED, --will need to be replaced by caller zip when made available
+        center_state AS state_ti, --will need to be replaced by caller state when made available
+        COUNT(distinct ANSWERED) AS ANSWERED_ti
+    FROM analytics.marts.core_988_reporting_layer
+    WHERE initiated_date_est >= '2023-10-02'
+    GROUP BY 1,2,3
