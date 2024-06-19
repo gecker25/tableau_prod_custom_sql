@@ -1,4 +1,12 @@
-with union_modalities as(
+with recursive intervalseries as (
+
+        select TO_TIMESTAMP(DATEADD('DAY', -45, CURRENT_DATE)) as interval_val
+        union all
+        select timestampadd(hour, 1, interval_val)
+        from intervalseries
+        where interval_val < current_date - interval '1 day'
+
+), calls as(
 select 
     c.modality,
     c.interaction_record_key,
@@ -55,7 +63,7 @@ from ANALYTICS.MARTS.CORE_988_REPORTING_LAYER c
 where c.initiated_datetime_est >= current_date - interval '45 days'
 AND c.initiated_datetime_est < current_date
 AND MODALITY = 'Calls'
-AND subnetwork NOT IN ('SpanishDDH', 'VA', 'Disaster' )
+AND subnetwork <> 'VA'
 ),
 
 local_subnetwork as (
@@ -76,7 +84,7 @@ local_subnetwork as (
         COUNT(DISTINCT abandoned_local) AS Abandoned,
         SUM(time_to_answer_local) AS Time_to_Answer,   --In Tableau sum(time to answer/answered calls = asa)
         SUM(time_to_abandon_local) as Time_to_Abandon
-    from  union_modalities 
+    from  calls
     group by 
         center_key,
         modality,
@@ -107,7 +115,7 @@ lgbtq as (
         COUNT(DISTINCT abandoned_lgbtq) AS Abandoned,
         SUM(time_to_answer_lgbtq) AS Time_to_Answer,   --In Tableau sum(time to answer/answered calls = asa)
         SUM(time_to_abandon_lgbtq) as Time_to_Abandon
-    from union_modalities
+    from calls
     group by 
         center_key,
         modality,
@@ -139,7 +147,7 @@ spanish as (
         COUNT(DISTINCT abandoned_spanish) AS Abandoned,
         SUM(time_to_answer_spanish) AS Time_to_Answer,   --In Tableau sum(time to answer/answered calls = asa)
         SUM(time_to_abandon_spanish) as Time_to_Abandon
-    from union_modalities
+    from calls
     group by 
         center_key,
         modality,
@@ -171,7 +179,7 @@ native as (
         COUNT(DISTINCT abandoned_native) AS Abandoned,
         SUM(time_to_answer_native) AS Time_to_Answer,   --In Tableau sum(time to answer/answered calls = asa)
         SUM(time_to_abandon_native) as Time_to_Abandon
-    from union_modalities
+    from calls
     group by 
         center_key,
         modality,
@@ -203,7 +211,7 @@ national_backup as (
         COUNT(DISTINCT abandoned_national_backup) AS Abandoned,
         SUM(time_to_answer_national_backup) AS Time_to_Answer,   --In Tableau sum(time to answer/answered calls = asa)
         SUM(time_to_abandon_national_backup) as Time_to_Abandon
-    from union_modalities
+    from calls
     group by 
         center_key,
         modality,
@@ -349,46 +357,17 @@ from ANALYTICS.intermediate.int_centers c
     JOIN ANALYTICS.intermediate.int_center_operating_hours hoo on c.center_key = hoo.crisis_center_key
     JOIN staging.cmt_salesforce.cmt_account centers ON C.CENTER_KEY=centers.crisis_center_key
     JOIN (Select distinct center_key, 
-            MAX(center_lat) as center_lat, 
-            MAX(center_lng) as center_lng 
+            center_lat,
+            center_lng 
             from ANALYTICS.marts.core_988_reporting_layer
-            where center_key is not null
-            group by center_key
     ) Zip ON centers.crisis_center_key = Zip.Center_Key
 where hoo.modality = 'Calls'
     AND C.STATUS = 'Active'
     AND hoo.Network_status = 'Active'
     AND hoo.network NOT IN ('Disaster Distress Helpline', 'DDH - Spanish')
     AND hoo.network NOT LIKE 'Veteran%'
-   
-), 
 
-StagingTable AS (
-select distinct
-    C.center_key, 
-    C.center_name,
-    C.center_state,
-    C.center_city,
-    C.center_zip,
-    C.center_lng,
-    C.center_lat,
-    C.center_network, 
-    C.center_open_24_hours, 
-    C.center_start_time, 
-    C.center_end_time, 
-    C.center_hours_day_of_week, 
-    C.daylights_savings,
-    C.Center_time_zone,
-    TIMESTAMP_NTZ_FROM_PARTS(D.Date_Day::DATE, C.center_start_time::TIME) as start_datetime,
-    TIMESTAMP_NTZ_FROM_PARTS(D.Date_Day::DATE, C.center_end_time::TIME) as end_datetime,
-    D.Date_Day, 
-    '0' AS Hour
-from CENTERHOURPREP c, "ANALYTICS"."MARTS"."DIM_DATES" "D" 
-where Date_Day >= current_date - interval '45 days'
-    AND Date_Day < CURRENT_DATE()
-    AND  C.center_hours_day_of_week =  DAYNAME(Date_Day)
-
-UNION
+), StagingTable as (
 
 select distinct
     C.center_key, 
@@ -407,589 +386,15 @@ select distinct
     C.Center_time_zone,
     TIMESTAMP_NTZ_FROM_PARTS(D.Date_Day::DATE, C.center_start_time::TIME) as start_datetime,
     TIMESTAMP_NTZ_FROM_PARTS(D.Date_Day::DATE, C.center_end_time::TIME) as end_datetime,
-    D.Date_Day, 
-    '1' AS Hour
-from CENTERHOURPREP c, "ANALYTICS"."MARTS"."DIM_DATES" "D" 
+    D.Date_Day,
+    date_part('hour', interval_val) as hour
+from CENTERHOURPREP c, "ANALYTICS"."MARTS"."DIM_DATES" "D"
+join intervalseries on intervalseries.interval_val between current_date - interval '45 days' and current_date - interval '1 days'
 where Date_Day >= current_date - interval '45 days'
-    AND Date_Day < CURRENT_DATE()
-    AND  C.center_hours_day_of_week =  DAYNAME(Date_Day)
+AND Date_Day < CURRENT_DATE()
+AND  C.center_hours_day_of_week =  DAYNAME(Date_Day)
 
-UNION 
-
-select distinct
-    C.center_key, 
-    C.center_name,
-    C.center_state,
-    C.center_city,
-    C.center_zip,
-    C.center_lng,
-    C.center_lat,
-    C.center_network, 
-    C.center_open_24_hours, 
-    C.center_start_time, 
-    C.center_end_time, 
-    C.center_hours_day_of_week, 
-    C.daylights_savings,
-    C.Center_time_zone,
-    TIMESTAMP_NTZ_FROM_PARTS(D.Date_Day::DATE, C.center_start_time::TIME) as start_datetime,
-    TIMESTAMP_NTZ_FROM_PARTS(D.Date_Day::DATE, C.center_end_time::TIME) as end_datetime,
-    D.Date_Day, 
-    '2' AS Hour
-from CENTERHOURPREP c, "ANALYTICS"."MARTS"."DIM_DATES" "D" 
-where Date_Day >= current_date - interval '45 days'
-    AND Date_Day < CURRENT_DATE()
-    AND  C.center_hours_day_of_week =  DAYNAME(Date_Day)
-
-UNION
-
-select distinct
-    C.center_key, 
-    C.center_name,
-    C.center_state,
-    C.center_city,
-    C.center_zip,
-    C.center_lng,
-    C.center_lat,
-    C.center_network, 
-    C.center_open_24_hours, 
-    C.center_start_time, 
-    C.center_end_time, 
-    C.center_hours_day_of_week, 
-    C.daylights_savings,
-    C.Center_time_zone,
-    TIMESTAMP_NTZ_FROM_PARTS(D.Date_Day::DATE, C.center_start_time::TIME) as start_datetime,
-    TIMESTAMP_NTZ_FROM_PARTS(D.Date_Day::DATE, C.center_end_time::TIME) as end_datetime,
-    D.Date_Day, 
-    '3' AS Hour
-from CENTERHOURPREP c, "ANALYTICS"."MARTS"."DIM_DATES" "D" 
-where Date_Day >= current_date - interval '45 days'
-    AND Date_Day < CURRENT_DATE()
-    AND  C.center_hours_day_of_week =  DAYNAME(Date_Day)
-
-UNION
-
-select distinct
-    C.center_key, 
-    C.center_name,
-    C.center_state,
-    C.center_city,
-    C.center_zip,
-    C.center_lng,
-    C.center_lat,
-    C.center_network, 
-    C.center_open_24_hours, 
-    C.center_start_time, 
-    C.center_end_time, 
-    C.center_hours_day_of_week, 
-    C.daylights_savings,
-    C.Center_time_zone,
-    TIMESTAMP_NTZ_FROM_PARTS(D.Date_Day::DATE, C.center_start_time::TIME) as start_datetime,
-    TIMESTAMP_NTZ_FROM_PARTS(D.Date_Day::DATE, C.center_end_time::TIME) as end_datetime,
-    D.Date_Day, 
-    '4' AS Hour
-from CENTERHOURPREP c, "ANALYTICS"."MARTS"."DIM_DATES" "D" 
-where Date_Day >= current_date - interval '45 days'
-    AND Date_Day < CURRENT_DATE()
-    AND  C.center_hours_day_of_week =  DAYNAME(Date_Day)
-
-UNION
-
-select distinct
-    C.center_key, 
-    C.center_name,
-    C.center_state,
-    C.center_city,
-    C.center_zip,
-    C.center_lng,
-    C.center_lat,
-    C.center_network, 
-    C.center_open_24_hours, 
-    C.center_start_time, 
-    C.center_end_time, 
-    C.center_hours_day_of_week, 
-    C.daylights_savings,
-    C.Center_time_zone,
-    TIMESTAMP_NTZ_FROM_PARTS(D.Date_Day::DATE, C.center_start_time::TIME) as start_datetime,
-    TIMESTAMP_NTZ_FROM_PARTS(D.Date_Day::DATE, C.center_end_time::TIME) as end_datetime,
-    D.Date_Day, 
-    '5' AS Hour
-from CENTERHOURPREP c, "ANALYTICS"."MARTS"."DIM_DATES" "D" 
-where Date_Day >= current_date - interval '45 days'
-    AND Date_Day < CURRENT_DATE()
-    AND  C.center_hours_day_of_week =  DAYNAME(Date_Day)
-
-UNION 
-
-select distinct
-    C.center_key, 
-    C.center_name,
-    C.center_state,
-    C.center_city,
-    C.center_zip,
-    C.center_lng,
-    C.center_lat,
-    C.center_network, 
-    C.center_open_24_hours, 
-    C.center_start_time, 
-    C.center_end_time, 
-    C.center_hours_day_of_week, 
-    C.daylights_savings,
-    C.Center_time_zone,
-    TIMESTAMP_NTZ_FROM_PARTS(D.Date_Day::DATE, C.center_start_time::TIME) as start_datetime,
-    TIMESTAMP_NTZ_FROM_PARTS(D.Date_Day::DATE, C.center_end_time::TIME) as end_datetime,
-    D.Date_Day, 
-    '6' AS Hour
-from CENTERHOURPREP c, "ANALYTICS"."MARTS"."DIM_DATES" "D" 
-where Date_Day >= current_date - interval '45 days'
-    AND Date_Day < CURRENT_DATE()
-    AND  C.center_hours_day_of_week =  DAYNAME(Date_Day)
-
-UNION
-
-select distinct
-    C.center_key, 
-    C.center_name,
-    C.center_state,
-    C.center_city,
-    C.center_zip,
-    C.center_lng,
-    C.center_lat,
-    C.center_network, 
-    C.center_open_24_hours, 
-    C.center_start_time, 
-    C.center_end_time, 
-    C.center_hours_day_of_week, 
-    C.daylights_savings,
-    C.Center_time_zone,
-    TIMESTAMP_NTZ_FROM_PARTS(D.Date_Day::DATE, C.center_start_time::TIME) as start_datetime,
-    TIMESTAMP_NTZ_FROM_PARTS(D.Date_Day::DATE, C.center_end_time::TIME) as end_datetime,
-    D.Date_Day, 
-    '7' AS Hour
-from CENTERHOURPREP c, "ANALYTICS"."MARTS"."DIM_DATES" "D" 
-where Date_Day >= current_date - interval '45 days'
-    AND Date_Day < CURRENT_DATE()
-    AND  C.center_hours_day_of_week =  DAYNAME(Date_Day)
-
-UNION
-
-select distinct
-    C.center_key, 
-    C.center_name,
-    C.center_state,
-    C.center_city,
-    C.center_zip,
-    C.center_lng,
-    C.center_lat,
-    C.center_network, 
-    C.center_open_24_hours, 
-    C.center_start_time, 
-    C.center_end_time, 
-    C.center_hours_day_of_week, 
-    C.daylights_savings,
-    C.Center_time_zone,
-    TIMESTAMP_NTZ_FROM_PARTS(D.Date_Day::DATE, C.center_start_time::TIME) as start_datetime,
-    TIMESTAMP_NTZ_FROM_PARTS(D.Date_Day::DATE, C.center_end_time::TIME) as end_datetime,
-    D.Date_Day, 
-    '8' AS Hour
-from CENTERHOURPREP c, "ANALYTICS"."MARTS"."DIM_DATES" "D" 
-where Date_Day >= current_date - interval '45 days'
-    AND Date_Day < CURRENT_DATE()
-    AND  C.center_hours_day_of_week =  DAYNAME(Date_Day)
-
-UNION
-
-select distinct
-    C.center_key, 
-    C.center_name,
-    C.center_state,
-    C.center_city,
-    C.center_zip,
-    C.center_lng,
-    C.center_lat,
-    C.center_network, 
-    C.center_open_24_hours, 
-    C.center_start_time, 
-    C.center_end_time, 
-    C.center_hours_day_of_week, 
-    C.daylights_savings,
-    C.Center_time_zone,
-    TIMESTAMP_NTZ_FROM_PARTS(D.Date_Day::DATE, C.center_start_time::TIME) as start_datetime,
-    TIMESTAMP_NTZ_FROM_PARTS(D.Date_Day::DATE, C.center_end_time::TIME) as end_datetime,
-    D.Date_Day, 
-    '9' AS Hour
-from CENTERHOURPREP c, "ANALYTICS"."MARTS"."DIM_DATES" "D" 
-where Date_Day >= current_date - interval '45 days'
-    AND Date_Day < CURRENT_DATE()
-    AND  C.center_hours_day_of_week =  DAYNAME(Date_Day)
-
-UNION 
-
-select distinct
-    C.center_key, 
-    C.center_name,
-    C.center_state,
-    C.center_city,
-    C.center_zip,
-    C.center_lng,
-    C.center_lat,
-    C.center_network, 
-    C.center_open_24_hours, 
-    C.center_start_time, 
-    C.center_end_time, 
-    C.center_hours_day_of_week, 
-    C.daylights_savings,
-    C.Center_time_zone,
-    TIMESTAMP_NTZ_FROM_PARTS(D.Date_Day::DATE, C.center_start_time::TIME) as start_datetime,
-    TIMESTAMP_NTZ_FROM_PARTS(D.Date_Day::DATE, C.center_end_time::TIME) as end_datetime,
-    D.Date_Day, 
-    '10' AS Hour
-from CENTERHOURPREP c, "ANALYTICS"."MARTS"."DIM_DATES" "D" 
-where Date_Day >= current_date - interval '45 days'
-    AND Date_Day < CURRENT_DATE()
-    AND  C.center_hours_day_of_week =  DAYNAME(Date_Day)
-
-UNION
-
-select distinct
-    C.center_key, 
-    C.center_name,
-    C.center_state,
-    C.center_city,
-    C.center_zip,
-    C.center_lng,
-    C.center_lat,
-    C.center_network, 
-    C.center_open_24_hours, 
-    C.center_start_time, 
-    C.center_end_time, 
-    C.center_hours_day_of_week, 
-    C.daylights_savings,
-    C.Center_time_zone,
-    TIMESTAMP_NTZ_FROM_PARTS(D.Date_Day::DATE, C.center_start_time::TIME) as start_datetime,
-    TIMESTAMP_NTZ_FROM_PARTS(D.Date_Day::DATE, C.center_end_time::TIME) as end_datetime,
-    D.Date_Day, 
-    '11' AS Hour
-from CENTERHOURPREP c, "ANALYTICS"."MARTS"."DIM_DATES" "D" 
-where Date_Day >= current_date - interval '45 days'
-    AND Date_Day < CURRENT_DATE()
-    AND  C.center_hours_day_of_week =  DAYNAME(Date_Day)
-
-UNION
-
-select distinct
-    C.center_key, 
-    C.center_name,
-    C.center_state,
-    C.center_city,
-    C.center_zip,
-    C.center_lng,
-    C.center_lat,
-    C.center_network, 
-    C.center_open_24_hours, 
-    C.center_start_time, 
-    C.center_end_time, 
-    C.center_hours_day_of_week, 
-    C.daylights_savings,
-    C.Center_time_zone,
-    TIMESTAMP_NTZ_FROM_PARTS(D.Date_Day::DATE, C.center_start_time::TIME) as start_datetime,
-    TIMESTAMP_NTZ_FROM_PARTS(D.Date_Day::DATE, C.center_end_time::TIME) as end_datetime,
-    D.Date_Day, 
-    '12' AS Hour
-from CENTERHOURPREP c, "ANALYTICS"."MARTS"."DIM_DATES" "D" 
-where Date_Day >= current_date - interval '45 days'
-    AND Date_Day < CURRENT_DATE()
-    AND  C.center_hours_day_of_week =  DAYNAME(Date_Day)
-
-UNION
-
-select distinct
-    C.center_key, 
-    C.center_name,
-    C.center_state,
-    C.center_city,
-    C.center_zip,
-    C.center_lng,
-    C.center_lat,
-    C.center_network, 
-    C.center_open_24_hours, 
-    C.center_start_time, 
-    C.center_end_time, 
-    C.center_hours_day_of_week, 
-    C.daylights_savings,
-    C.Center_time_zone,
-    TIMESTAMP_NTZ_FROM_PARTS(D.Date_Day::DATE, C.center_start_time::TIME) as start_datetime,
-    TIMESTAMP_NTZ_FROM_PARTS(D.Date_Day::DATE, C.center_end_time::TIME) as end_datetime,
-    D.Date_Day, 
-    '13' AS Hour
-from CENTERHOURPREP c, "ANALYTICS"."MARTS"."DIM_DATES" "D" 
-where Date_Day >= current_date - interval '45 days'
-    AND Date_Day < CURRENT_DATE()
-    AND  C.center_hours_day_of_week =  DAYNAME(Date_Day)
-
-UNION 
-
-select distinct
-    C.center_key, 
-    C.center_name,
-    C.center_state,
-    C.center_city,
-    C.center_zip,
-    C.center_lng,
-    C.center_lat,
-    C.center_network, 
-    C.center_open_24_hours, 
-    C.center_start_time, 
-    C.center_end_time, 
-    C.center_hours_day_of_week, 
-    C.daylights_savings,
-    C.Center_time_zone,
-    TIMESTAMP_NTZ_FROM_PARTS(D.Date_Day::DATE, C.center_start_time::TIME) as start_datetime,
-    TIMESTAMP_NTZ_FROM_PARTS(D.Date_Day::DATE, C.center_end_time::TIME) as end_datetime,
-    D.Date_Day, 
-    '14' AS Hour
-from CENTERHOURPREP c, "ANALYTICS"."MARTS"."DIM_DATES" "D" 
-where Date_Day >= current_date - interval '45 days'
-    AND Date_Day < CURRENT_DATE()
-    AND  C.center_hours_day_of_week =  DAYNAME(Date_Day)
-
-UNION
-
-select distinct
-    C.center_key, 
-    C.center_name,
-    C.center_state,
-    C.center_city,
-    C.center_zip,
-    C.center_lng,
-    C.center_lat,
-    C.center_network, 
-    C.center_open_24_hours, 
-    C.center_start_time, 
-    C.center_end_time, 
-    C.center_hours_day_of_week, 
-    C.daylights_savings,
-    C.Center_time_zone,
-    TIMESTAMP_NTZ_FROM_PARTS(D.Date_Day::DATE, C.center_start_time::TIME) as start_datetime,
-    TIMESTAMP_NTZ_FROM_PARTS(D.Date_Day::DATE, C.center_end_time::TIME) as end_datetime,
-    D.Date_Day, 
-    '15' AS Hour
-from CENTERHOURPREP c, "ANALYTICS"."MARTS"."DIM_DATES" "D" 
-where Date_Day >= current_date - interval '45 days'
-    AND Date_Day < CURRENT_DATE()
-    AND  C.center_hours_day_of_week =  DAYNAME(Date_Day)
-
-UNION
-
-select distinct
-    C.center_key, 
-    C.center_name,
-    C.center_state,
-    C.center_city,
-    C.center_zip,
-    C.center_lng,
-    C.center_lat,
-    C.center_network, 
-    C.center_open_24_hours, 
-    C.center_start_time, 
-    C.center_end_time, 
-    C.center_hours_day_of_week, 
-    C.daylights_savings,
-    C.Center_time_zone,
-    TIMESTAMP_NTZ_FROM_PARTS(D.Date_Day::DATE, C.center_start_time::TIME) as start_datetime,
-    TIMESTAMP_NTZ_FROM_PARTS(D.Date_Day::DATE, C.center_end_time::TIME) as end_datetime,
-    D.Date_Day, 
-    '16' AS Hour
-from CENTERHOURPREP c, "ANALYTICS"."MARTS"."DIM_DATES" "D" 
-where Date_Day >= current_date - interval '45 days'
-    AND Date_Day < CURRENT_DATE()
-    AND  C.center_hours_day_of_week =  DAYNAME(Date_Day)
-
-UNION
-
-select distinct
-    C.center_key, 
-    C.center_name,
-    C.center_state,
-    C.center_city,
-    C.center_zip,
-    C.center_lng,
-    C.center_lat,
-    C.center_network, 
-    C.center_open_24_hours, 
-    C.center_start_time, 
-    C.center_end_time, 
-    C.center_hours_day_of_week, 
-    C.daylights_savings,
-    C.Center_time_zone,
-    TIMESTAMP_NTZ_FROM_PARTS(D.Date_Day::DATE, C.center_start_time::TIME) as start_datetime,
-    TIMESTAMP_NTZ_FROM_PARTS(D.Date_Day::DATE, C.center_end_time::TIME) as end_datetime,
-    D.Date_Day, 
-    '17' AS Hour
-from CENTERHOURPREP c, "ANALYTICS"."MARTS"."DIM_DATES" "D" 
-where Date_Day >= current_date - interval '45 days'
-    AND Date_Day < CURRENT_DATE()
-    AND  C.center_hours_day_of_week =  DAYNAME(Date_Day)
-
-UNION 
-
-select distinct
-    C.center_key, 
-    C.center_name,
-    C.center_state,
-    C.center_city,
-    C.center_zip,
-    C.center_lng,
-    C.center_lat,
-    C.center_network, 
-    C.center_open_24_hours, 
-    C.center_start_time, 
-    C.center_end_time, 
-    C.center_hours_day_of_week, 
-    C.daylights_savings,
-    C.Center_time_zone,
-    TIMESTAMP_NTZ_FROM_PARTS(D.Date_Day::DATE, C.center_start_time::TIME) as start_datetime,
-    TIMESTAMP_NTZ_FROM_PARTS(D.Date_Day::DATE, C.center_end_time::TIME) as end_datetime,
-    D.Date_Day, 
-    '18' AS Hour
-from CENTERHOURPREP c, "ANALYTICS"."MARTS"."DIM_DATES" "D" 
-where Date_Day >= current_date - interval '45 days'
-    AND Date_Day < CURRENT_DATE()
-    AND  C.center_hours_day_of_week =  DAYNAME(Date_Day)
-
-UNION
-
-select distinct
-    C.center_key, 
-    C.center_name,
-    C.center_state,
-    C.center_city,
-    C.center_zip,
-    C.center_lng,
-    C.center_lat,
-    C.center_network, 
-    C.center_open_24_hours, 
-    C.center_start_time, 
-    C.center_end_time, 
-    C.center_hours_day_of_week, 
-    C.daylights_savings,
-    C.Center_time_zone,
-    TIMESTAMP_NTZ_FROM_PARTS(D.Date_Day::DATE, C.center_start_time::TIME) as start_datetime,
-    TIMESTAMP_NTZ_FROM_PARTS(D.Date_Day::DATE, C.center_end_time::TIME) as end_datetime,
-    D.Date_Day, 
-    '19' AS Hour
-from CENTERHOURPREP c, "ANALYTICS"."MARTS"."DIM_DATES" "D" 
-where Date_Day >= current_date - interval '45 days'
-    AND Date_Day < CURRENT_DATE()
-    AND  C.center_hours_day_of_week =  DAYNAME(Date_Day)
-
-UNION
-
-select distinct
-    C.center_key, 
-    C.center_name,
-    C.center_state,
-    C.center_city,
-    C.center_zip,
-    C.center_lng,
-    C.center_lat,
-    C.center_network, 
-    C.center_open_24_hours, 
-    C.center_start_time, 
-    C.center_end_time, 
-    C.center_hours_day_of_week, 
-    C.daylights_savings,
-    C.Center_time_zone,
-    TIMESTAMP_NTZ_FROM_PARTS(D.Date_Day::DATE, C.center_start_time::TIME) as start_datetime,
-    TIMESTAMP_NTZ_FROM_PARTS(D.Date_Day::DATE, C.center_end_time::TIME) as end_datetime,
-    D.Date_Day, 
-    '20' AS Hour
-from CENTERHOURPREP c, "ANALYTICS"."MARTS"."DIM_DATES" "D" 
-where Date_Day >= current_date - interval '45 days'
-    AND Date_Day < CURRENT_DATE()
-    AND  C.center_hours_day_of_week =  DAYNAME(Date_Day)
-
-UNION
-
-select distinct
-    C.center_key, 
-    C.center_name,
-    C.center_state,
-    C.center_city,
-    C.center_zip,
-    C.center_lng,
-    C.center_lat,
-    C.center_network, 
-    C.center_open_24_hours, 
-    C.center_start_time, 
-    C.center_end_time, 
-    C.center_hours_day_of_week, 
-    C.daylights_savings,
-    C.Center_time_zone,
-    TIMESTAMP_NTZ_FROM_PARTS(D.Date_Day::DATE, C.center_start_time::TIME) as start_datetime,
-    TIMESTAMP_NTZ_FROM_PARTS(D.Date_Day::DATE, C.center_end_time::TIME) as end_datetime,
-    D.Date_Day, 
-    '21' AS Hour
-from CENTERHOURPREP c, "ANALYTICS"."MARTS"."DIM_DATES" "D" 
-where Date_Day >= current_date - interval '45 days'
-    AND Date_Day < CURRENT_DATE()
-    AND  C.center_hours_day_of_week =  DAYNAME(Date_Day)
-
-UNION 
-
-select distinct
-    C.center_key, 
-    C.center_name,
-    C.center_state,
-    C.center_city,
-    C.center_zip,
-    C.center_lng,
-    C.center_lat,
-    C.center_network, 
-    C.center_open_24_hours, 
-    C.center_start_time, 
-    C.center_end_time, 
-    C.center_hours_day_of_week, 
-    C.daylights_savings,
-    C.Center_time_zone,
-    TIMESTAMP_NTZ_FROM_PARTS(D.Date_Day::DATE, C.center_start_time::TIME) as start_datetime,
-    TIMESTAMP_NTZ_FROM_PARTS(D.Date_Day::DATE, C.center_end_time::TIME) as end_datetime,
-    D.Date_Day, 
-    '22' AS Hour
-from CENTERHOURPREP c, "ANALYTICS"."MARTS"."DIM_DATES" "D" 
-where Date_Day >= current_date - interval '45 days'
-    AND Date_Day < CURRENT_DATE()
-    AND  C.center_hours_day_of_week =  DAYNAME(Date_Day)
-
-UNION
-
-select distinct
-    C.center_key, 
-    C.center_name,
-    C.center_state,
-    C.center_city,
-    C.center_zip,
-    C.center_lng,
-    C.center_lat,
-    C.center_network, 
-    C.center_open_24_hours, 
-    C.center_start_time, 
-    C.center_end_time, 
-    C.center_hours_day_of_week, 
-    C.daylights_savings,
-    C.Center_time_zone,
-    TIMESTAMP_NTZ_FROM_PARTS(D.Date_Day::DATE, C.center_start_time::TIME) as start_datetime,
-    TIMESTAMP_NTZ_FROM_PARTS(D.Date_Day::DATE, C.center_end_time::TIME) as end_datetime,
-    D.Date_Day, 
-    '23' AS Hour
-from CENTERHOURPREP c, "ANALYTICS"."MARTS"."DIM_DATES" "D" 
-where Date_Day >= current_date - interval '45 days'
-    AND Date_Day < CURRENT_DATE()
-    AND  C.center_hours_day_of_week =  DAYNAME(Date_Day)
-
-
-),
-
-CenterHourPrep2 as(
+), ShiftTimeZone as(
 Select 
 c.center_key, 
 C.center_name,
@@ -1082,14 +487,14 @@ FROM StagingTable C
 
 ),
 
-CenterHourPrep3 as (
+DateAdjustmentLogic as (
 Select *, 
 CASE WHEN center_open_24_hours  = 'False' AND DATEDIFF(day, converted_start_datetime, converted_end_datetime) = 1 AND HOUR = 23 THEN converted_end_datetime ELSE NULL END AS DateAdjustment_EndDateTime,
-CASE WHEN center_open_24_hours = 'False' AND DATEDIFF(day, converted_start_datetime, converted_end_datetime) = 1 AND HOUR = 23 THEN center_open_24_hours ELSE NULL END AS DateAdjustment_24hours, 
-from CenterHourPrep2
+CASE WHEN center_open_24_hours = 'False' AND DATEDIFF(day, converted_start_datetime, converted_end_datetime) = 1 AND HOUR = 23 THEN center_open_24_hours ELSE NULL END AS DateAdjustment_24hours
+from ShiftTimeZone
 ) , 
 
-CenterHourPrep4 as(
+DateAdjustmentLogic2 as(
 select 
 c.center_key, 
 C.center_name,
@@ -1112,7 +517,7 @@ C.converted_Start_datetime,
 C.converted_ENd_datetime,
 LAG(DateAdjustment_EndDateTime) IGNORE NULLS OVER(ORDER BY center_key, subnetwork, date_day, TO_NUMERIC(HOUR)) AS DateAdjustment_EndDateTime2, 
 LAG(DateAdjustment_24hours) IGNORE NULLS OVER(ORDER BY center_key, subnetwork, date_day, TO_NUMERIC(HOUR)) AS DateAdjustment_24hours
-from CenterHourPrep3 C
+from DateAdjustmentLogic C
 ),
 
 DataWStaging as (  
@@ -1139,7 +544,7 @@ IFNULL(B.Abandoned,0) as Abandoned,
 IFNULL(B.Time_to_Answer,0) as Time_to_Answer,
 IFNULL(B.Time_to_Abandon,0) as TIme_to_Abandon, 
 RANK() OVER (ORDER BY A.CENTER_KEY, A.Subnetwork, A.Date_Day, TO_NUMERIC(A.Hour) Asc) as ID
-from CenterHourPrep4 A
+from DateAdjustmentLogic2 A
 LEFT JOIN base B ON A.Center_key=B.Center_key AND A.Subnetwork=B.Subnetwork and A.Date_Day=B.date_est_value AND A.Hour=B.initiated_hour_est
 where (CASE
     WHEN center_open_24_hours = 'FALSE' 
@@ -1173,11 +578,8 @@ FROM DataWStaging
     ) t
 GROUP BY GP, routed, CENTER_KEY, Subnetwork, Initiated_Date
 HAVING Routed = 0
-
 AND COUNT(*) <> 1
 )
-
-
 
 
 Select distinct
@@ -1211,4 +613,3 @@ CASE WHEN Initiated_Hour_Est >= O.Start_Hour AND Initiated_Hour_Est <= O.End_Hou
 END AS Outage_Level, 
 FROM DataWStaging D
 LEFT JOIN Outage O on D.Center_KEY=O.Center_Key AND D.Subnetwork=O.Subnetwork AND D.Initiated_Date=O.Initiated_Date AND D.Initiated_Hour_Est >= O.Start_Hour and D.Initiated_Hour_Est <= O.End_Hour
-WHERE D.Center_Key NOT IN ('SRock1', 'SRock2')
