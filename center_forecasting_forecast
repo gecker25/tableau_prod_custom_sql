@@ -22,5 +22,4 @@ from
 staging.aiml.center_level_volume_forecasting
 where MODALITY = 'Calls'
 and run_date = (select MAX(run_date) from staging.aiml.center_level_volume_forecasting)
-and Center_key NOT IN ('SRock1', 'SRock2')
 and network <> 'VA'
